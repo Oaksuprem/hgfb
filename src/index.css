@@ -30,6 +30,8 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body, #root { max-width: 100%; overflow-x: clip; }
+
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   background: var(--bg);
@@ -42,6 +44,7 @@ body {
 }
 
 #root { min-height: 100vh; display: flex; flex-direction: column; }
+#root > * { min-width: 0; }
 
 .navbar {
   position: sticky; top: 0; z-index: 100;
@@ -97,7 +100,7 @@ body {
   padding: 14px 16px; box-shadow: var(--shadow);
 }
 
-.page { flex: 1; padding: 14px 16px 28px; max-width: 1080px; margin: 0 auto; width: 100%; }
+.page { flex: 1; padding: 14px 16px 28px; max-width: 1080px; margin: 0 auto; width: 100%; min-width: 0; }
 .page-header { margin-bottom: 12px; display: flex; flex-direction: column; gap: 2px; }
 .page-kicker {
   font-size: .62rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
@@ -134,8 +137,8 @@ body {
 }
 .field select option { background: #12100e; }
 .field textarea { resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
-.field-row { display: flex; gap: 8px; }
-.field-row .field { flex: 1; }
+.field-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.field-row .field { flex: 1 1 140px; min-width: min(100%, 140px); }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -172,6 +175,7 @@ body {
 code {
   font-family: 'JetBrains Mono', monospace; font-size: .82em;
   background: rgba(232,168,86,.12); color: var(--accent); padding: 1px 5px; border-radius: 4px;
+  overflow-wrap: anywhere;
 }
 
 .result-box {
@@ -183,7 +187,7 @@ code {
 
 .alert {
   padding: 8px 11px; border-radius: var(--r2); font-size: .76rem;
-  display: flex; align-items: flex-start; gap: 6px; line-height: 1.4;
+  display: block; max-width: 100%; line-height: 1.45; overflow-wrap: anywhere;
 }
 .alert-info    { background: rgba(232,168,86,.08);  border: 1px solid rgba(232,168,86,.2);  color: #f0d2a8; }
 .alert-success { background: rgba(52,211,153,.08);  border: 1px solid rgba(52,211,153,.2);  color: var(--green); }
@@ -297,8 +301,6 @@ code {
 .install-banner-actions { display: flex; gap: 6px; flex-shrink: 0; }
 @media (max-width: 640px) {
   .install-banner { flex-direction: column; align-items: stretch; }
-  .navbar-right { width: 100%; padding-bottom: 6px; }
-  .navbar-tabs { width: 100%; overflow-x: auto; }
 }
 
 @media (display-mode: standalone) {
@@ -393,7 +395,6 @@ code {
   font-size: .76rem;
   font-weight: 700;
   color: var(--txt);
-  flex-shrink: 0;
 }
 
 .flag-hint {
@@ -468,13 +469,13 @@ code {
   flex-wrap: wrap;
 }
 .field-row .field {
-  flex: 1;
-  min-width: 120px;
+  flex: 1 1 140px;
+  min-width: min(100%, 140px);
 }
 
 /* Batch-row field rows (4 columns) need a min-width hint */
 .field-row.batch-row .field {
-  min-width: 100px;
+  min-width: min(100%, 100px);
 }
 
 /* ── Responsive: narrow screens ────────────────────────────────────────── */
@@ -490,13 +491,9 @@ code {
     gap: 10px;
     padding: 10px 14px;
   }
-  .token-type-sub { display: none; }
-
   .flags-grid {
     grid-template-columns: 1fr;
   }
-
-  .flag-hint { display: none; }
 }
 
 .token-issuer {
@@ -543,7 +540,7 @@ code {
 .lp-ledger-badge { color: #7dcea0; font-size: .66rem; font-weight: 700; }
 .lp-stats-band { margin: 8px 0 18px; }
 .lp-stats-inner, .lp-feature-grid, .lp-audience-grid, .lp-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 10px;
 }
 .lp-stat-value { font-size: 1.3rem; font-weight: 800; color: var(--txt); }
 .lp-stat-label, .lp-feature-title, .lp-audience-headline { font-weight: 800; margin-bottom: 4px; }
@@ -582,3 +579,63 @@ code {
 .ct-balance-arrow { color: var(--accent); font-size: .72rem; }
 .ct-decrypt-value { font-family: 'JetBrains Mono', monospace; color: var(--accent); }
 .divider { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+
+.table-scroll { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 900px) {
+  .navbar-inner { align-items: center; gap: 8px 10px; }
+  .navbar-brand { flex: 1 1 auto; min-width: 0; }
+  .navbar-right { width: auto; margin-left: auto; padding-bottom: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .navbar-tabs {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    overflow: visible;
+  }
+  .nav-tab { padding: 8px 10px; min-height: 36px; }
+  .navbar-wallet { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page, .lp-root, .install-banner { padding-left: 14px; padding-right: 14px; }
+  .lp-hero-actions .btn, .lp-cta-row .btn { flex: 1 1 180px; }
+  .wallet-header, .wallet-field-value, .tx-item-row, .modal-header { flex-wrap: wrap; }
+  .wallet-field-value .address, .wallet-field-value .mono { min-width: 0; overflow-wrap: anywhere; }
+  .steps { gap: 0; overflow-x: auto; }
+  .pdex-cred-row, .ms-signer-row, .oracle-price-row { flex-wrap: wrap; }
+  .ct-balance-diagram { align-items: stretch; }
+}
+
+@media (max-width: 720px) {
+  .tab-bar { flex-wrap: wrap; overflow: visible; }
+  .glass-card > div { min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  .page { padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
+  .lp-root { padding: 4px 12px calc(28px + env(safe-area-inset-bottom)); }
+  .page-header h2 { font-size: 1.12rem; }
+  .lp-hero { padding-top: 16px; }
+  .lp-hero-h1 { font-size: clamp(1.7rem, 9vw, 2.4rem); }
+  .lp-section-title { font-size: 1.15rem; }
+  .field input, .field select, .field textarea { font-size: 16px; padding: 10px 12px; }
+  .btn { white-space: normal; text-align: center; }
+  .btn-full, .lp-hero-actions .btn { width: 100%; }
+  .glass-card { padding: 12px; }
+  .modal-overlay { padding: 10px; align-items: flex-end; }
+  .modal-box { max-height: min(88dvh, 88vh); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .balance-amount { font-size: 1.12rem; }
+  .token-issuer { overflow-wrap: anywhere; }
+}
+
+@media (max-width: 380px) {
+  .brand-sub { display: none; }
+  .navbar-inner, .page, .lp-root { padding-left: 10px; padding-right: 10px; }
+  .nav-tab { padding: 8px 8px; font-size: .72rem; }
+  .net-select { max-width: 92px; }
+  .lp-hero-badge { letter-spacing: .04em; }
+}
+
+@media (min-width: 1280px) {
+  .page, .navbar-inner, .lp-root, .install-banner { max-width: 1120px; }
+}

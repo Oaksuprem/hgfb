@@ -216,7 +216,7 @@ export default function TrustLinePage() {
             {loadingLines ? 'Loading\u2026' : 'No lines yet. Open one to start holding issued assets.'}
           </div>
         ) : (
-          <table className="data-table">
+          <div className="table-scroll"><table className="data-table">
             <thead>
               <tr><th>Currency</th><th>Issuer</th><th>Balance</th><th>Limit</th><th></th></tr>
             </thead>
@@ -238,7 +238,7 @@ export default function TrustLinePage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

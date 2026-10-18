@@ -119,7 +119,7 @@ function SignerListTab() {
                 </a>
               )}
             </div>
-            <table className="data-table" style={{ marginTop: 6 }}>
+            <div className="table-scroll"><table className="data-table" style={{ marginTop: 6 }}>
               <thead>
                 <tr><th>#</th><th>Account</th><th>Weight</th></tr>
               </thead>
@@ -132,7 +132,7 @@ function SignerListTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </SectionCard>

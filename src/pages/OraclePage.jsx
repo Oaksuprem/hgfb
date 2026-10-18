@@ -390,7 +390,7 @@ function AggregatePricePanel() {
         <div className="glass-card fade-in">
           <div className="section-title">Result</div>
 
-          <table className="data-table">
+          <div className="table-scroll"><table className="data-table">
             <tbody>
               {result.entire_set && (
                 <>
@@ -431,7 +431,7 @@ function AggregatePricePanel() {
                 <td>{result.ledger_current_index ?? result.ledger_index ?? '—'}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>

@@ -283,7 +283,7 @@ function CredentialsPanel() {
           {credentials.length === 0 ? (
             <div className="muted">{lookupLoading ? 'Loading…' : 'No credentials found.'}</div>
           ) : (
-            <table className="data-table">
+            <div className="table-scroll"><table className="data-table">
               <thead>
                 <tr><th>Issuer</th><th>Subject</th><th>Type (decoded)</th><th>Accepted</th></tr>
               </thead>
@@ -297,7 +297,7 @@ function CredentialsPanel() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}
@@ -759,7 +759,7 @@ function TradingPanel({ domainID: propDomainID }) {
           ) : offers.length === 0 ? (
             <div className="muted">{loadingOffers ? 'Loading…' : 'No open orders.'}</div>
           ) : (
-            <table className="data-table">
+            <div className="table-scroll"><table className="data-table">
               <thead>
                 <tr><th>Seq</th><th>Sell</th><th>Buy</th><th>Quality</th><th>Domain</th><th></th></tr>
               </thead>
@@ -779,7 +779,7 @@ function TradingPanel({ domainID: propDomainID }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}

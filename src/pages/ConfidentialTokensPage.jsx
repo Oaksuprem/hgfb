@@ -725,8 +725,8 @@ export default function ConfidentialTokensPage() {
       <div className="grid-2">
         <div className="flow">
           {/* Step tabs */}
-          <div className="glass-card" style={{ padding: '4px 8px', overflowX: 'auto' }}>
-            <div className="tab-bar" style={{ flexWrap: 'nowrap' }}>
+          <div className="glass-card" style={{ padding: '4px 8px' }}>
+            <div className="tab-bar">
               {OUTER_TABS.map(t => (
                 <button key={t.key}
                   className={'tab-btn' + (tab === t.key ? ' tab-btn-active' : '')}

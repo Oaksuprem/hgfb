@@ -207,7 +207,7 @@ export default function DexPage() {
               {loadingOffers ? 'Loading\u2026' : 'No open orders. Place one and stay in the flow.'}
             </div>
           ) : (
-            <table className="data-table">
+            <div className="table-scroll"><table className="data-table">
               <thead>
                 <tr><th>Seq</th><th>Sell</th><th>Buy</th><th>Quality</th><th></th></tr>
               </thead>
@@ -227,7 +227,7 @@ export default function DexPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}

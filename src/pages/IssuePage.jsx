@@ -1466,7 +1466,7 @@ function MPTPanel() {
           ) : issuances.length === 0 ? (
             <div className="muted" style={{ margin: 0 }}>{loadingIss ? 'Loading…' : 'No issuances yet.'}</div>
           ) : (
-            <table className="data-table">
+            <div className="table-scroll"><table className="data-table">
               <thead>
                 <tr><th>Issuance ID</th><th>Scale</th><th>Max supply</th><th>Flags</th><th></th></tr>
               </thead>
@@ -1493,7 +1493,7 @@ function MPTPanel() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       )}
