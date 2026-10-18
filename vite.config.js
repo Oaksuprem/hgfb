@@ -26,7 +26,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
-      devOptions: { enabled: true, type: 'module' },
+      devOptions: { enabled: true, type: 'module', suppressWarnings: true },
       manifest: {
         id: '/',
         name: "HGFB — Hell's Gate Finance Bank",
