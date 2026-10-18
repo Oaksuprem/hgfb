@@ -10,11 +10,11 @@ import TrustLinePage from './pages/TrustLinePage'
 import DexPage from './pages/DexPage'
 import SponsorPage from './pages/SponsorPage'
 import MultisignPage from './pages/MultisignPage'
-import { isIssueHost } from './lib/hosts'
+import { isIssueHost, isSameOriginAdminPath } from './lib/hosts'
 import IssueApp from './issue/IssueApp.jsx'
 
 export default function App() {
-  if (isIssueHost()) return <IssueApp />
+  if (isIssueHost() || isSameOriginAdminPath()) return <IssueApp />
 
   return (
     <XrplProvider>

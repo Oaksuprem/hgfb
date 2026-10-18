@@ -6,7 +6,9 @@ export default function PortalJump({ portal, path }) {
   useEffect(() => {
     stageBookForHandoff(loadBook())
     const origin = portal === 'admin' ? adminOrigin() : bankOrigin()
-    window.location.replace(`${origin}${path}`)
+    const next = `${origin}${path}`
+    const here = `${window.location.origin}${window.location.pathname.replace(/\/+$/, '') || '/'}`
+    if (next !== here) window.location.replace(next)
   }, [portal, path])
 
   const label = portal === 'admin' ? 'the admin desk' : 'your bank'

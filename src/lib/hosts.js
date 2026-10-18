@@ -1,6 +1,18 @@
+const ADMIN_PATHS = ['/issue', '/oracle', '/permissioned-dex', '/confidential', '/confidential-tokens']
+
 function isPortalHost(hostname, label) {
   const host = hostname.toLowerCase()
   return host === `${label}.localhost` || host.startsWith(`${label}.`)
+}
+
+export function sameOriginPortals(hostname = window.location.hostname) {
+  return hostname.toLowerCase().endsWith('.vercel.app')
+}
+
+export function isSameOriginAdminPath(pathname = window.location.pathname) {
+  if (!sameOriginPortals()) return false
+  const path = pathname.replace(/\/+$/, '') || '/'
+  return ADMIN_PATHS.some(prefix => path === prefix || path.startsWith(`${prefix}/`))
 }
 
 export function isAdminHost(hostname = window.location.hostname) {
@@ -17,6 +29,7 @@ export function withPort(protocol, host) {
 }
 
 export function bankOrigin() {
+  if (sameOriginPortals()) return window.location.origin
   const { protocol, hostname } = window.location
   const host = hostname.toLowerCase()
   if (host === 'localhost' || host === '127.0.0.1' || host === 'admin.localhost' || host === 'issue.localhost') {
@@ -28,6 +41,7 @@ export function bankOrigin() {
 }
 
 export function adminOrigin() {
+  if (sameOriginPortals()) return window.location.origin
   const { protocol, hostname } = window.location
   const host = hostname.toLowerCase()
   if (host === 'localhost' || host === '127.0.0.1' || host === 'admin.localhost' || host === 'issue.localhost') {
