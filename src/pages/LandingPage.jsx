@@ -284,29 +284,27 @@ export default function LandingPage() {
         <div className="lp-section-inner">
           <div className="lp-section-tag">How it works</div>
           <h2 className="lp-section-h2">From key to cleared trade<br />in three steps.</h2>
-          <div className="lp-steps-row">
-            <div className="lp-step-card">
-              <div className="lp-step-num">01</div>
-              <div className="lp-step-title">Open your account</div>
-              <div className="lp-step-body">
+          <div className="lp-audience-grid">
+            <div className="lp-feature-card">
+              <div className="lp-audience-eyebrow">01</div>
+              <div className="lp-feature-title">Open your account</div>
+              <div className="lp-feature-body">
                 Generate or import a wallet. Fund it from the testnet faucet or deposit XRP.
                 Your seed never leaves your browser.
               </div>
             </div>
-            <div className="lp-step-arrow">→</div>
-            <div className="lp-step-card">
-              <div className="lp-step-num">02</div>
-              <div className="lp-step-title">Configure your rails</div>
-              <div className="lp-step-body">
+            <div className="lp-feature-card">
+              <div className="lp-audience-eyebrow">02</div>
+              <div className="lp-feature-title">Configure your rails</div>
+              <div className="lp-feature-body">
                 Open trust lines for the assets you want. Set up credentials for permissioned
                 markets. Issue your own tokens if needed.
               </div>
             </div>
-            <div className="lp-step-arrow">→</div>
-            <div className="lp-step-card">
-              <div className="lp-step-num">03</div>
-              <div className="lp-step-title">Trade and transact</div>
-              <div className="lp-step-body">
+            <div className="lp-feature-card">
+              <div className="lp-audience-eyebrow">03</div>
+              <div className="lp-feature-title">Trade and transact</div>
+              <div className="lp-feature-body">
                 Place orders, send payments, provide liquidity, and manage confidential
                 positions — all confirmed on-ledger in seconds.
               </div>
@@ -330,7 +328,7 @@ export default function LandingPage() {
               auditor key registration, and credential-based KYC and you have the
               compliance stack regulated markets demand, with none of the overhead.
             </p>
-            <div className="lp-compliance-chips">
+            <div className="lp-hero-pills">
               <span className="lp-chip">Credential-gated DEX</span>
               <span className="lp-chip">EC-ElGamal encryption</span>
               <span className="lp-chip">Auditor key registration</span>
@@ -339,25 +337,25 @@ export default function LandingPage() {
               <span className="lp-chip">Multi-sig treasury</span>
             </div>
           </div>
-          <div className="lp-compliance-visual" aria-hidden="true">
-            <div className="lp-flow-diagram">
-              <div className="lp-flow-node lp-flow-issuer">Issuer</div>
-              <div className="lp-flow-line" />
-              <div className="lp-flow-node lp-flow-domain">Permissioned<br />Domain</div>
-              <div className="lp-flow-line" />
-              <div className="lp-flow-node lp-flow-trader">Credentialed<br />Trader</div>
-              <div className="lp-flow-aside">
-                <div className="lp-flow-node lp-flow-auditor">Auditor</div>
-              </div>
+          <div className="lp-ledger-card" aria-hidden="true">
+            <div className="lp-ledger-header">
+              <span>On-ledger path</span>
+              <span className="lp-ledger-badge">Protocol</span>
+            </div>
+            <div className="lp-ledger-rows">
+              <div className="lp-ledger-row"><span className="lp-ledger-type">Issuer</span></div>
+              <div className="lp-ledger-row"><span className="lp-ledger-type">Permissioned domain</span></div>
+              <div className="lp-ledger-row"><span className="lp-ledger-type">Credentialed trader</span></div>
+              <div className="lp-ledger-row"><span className="lp-ledger-type">Auditor</span></div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── CTA ───────────────────────────────────────────────────────────── */}
-      <section className="lp-cta">
-        <div className="lp-cta-inner">
-          <h2 className="lp-cta-headline">Ready to transact at the speed of thought?</h2>
+      <section className="lp-section">
+        <div className="lp-cta-card">
+          <h2 className="lp-section-h2">Ready to transact at the speed of thought?</h2>
           <p className="lp-cta-sub">
             Open an account on devnet in seconds. No installation, no sign-up.
           </p>
