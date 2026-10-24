@@ -561,15 +561,15 @@ function TradingPanel({ domainID: propDomainID }) {
   useEffect(() => { if (propDomainID) setDomainID(propDomainID) }, [propDomainID])
 
   const fetchOffers = useCallback(async () => {
-    if (!wallet) return
+    if (!wallet) { setOffers([]); return }
     setLoadingOffers(true)
     try {
       const c = await ensureConnected()
       const r = await c.request({ command: 'account_offers', account: wallet.address, ledger_index: 'validated' })
       setOffers(r.result.offers || [])
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); setOffers([]) }
     finally { setLoadingOffers(false) }
-  }, [wallet, ensureConnected])
+  }, [wallet, network, ensureConnected])
 
   const createOffer = async () => {
     if (!wallet)              { setError('Open an account first — Bank tab.'); return }
@@ -797,6 +797,24 @@ const OUTER_TABS = [
   { key: 'trading',     label: 'Trading'     },
 ]
 
+function RailNotice() {
+  const { network, connected, featureEnabled } = useXrpl()
+  const flags = ['PermissionedDEX', 'PermissionedDomains', 'Credentials'].map(name => featureEnabled(name))
+  if (flags.every(flag => flag === true)) {
+    return <div className="alert alert-success" style={{ marginBottom: 12 }}>Permissioned DEX is enabled on {network}.</div>
+  }
+  if (flags.some(flag => flag === false)) {
+    return <div className="alert alert-warning" style={{ marginBottom: 12 }}>This rail has not enabled every permissioned-DEX amendment. A transaction here will be rejected.</div>
+  }
+  return (
+    <div className="alert alert-info" style={{ marginBottom: 12 }}>
+      {connected
+        ? `Amendment status is not available on ${network} yet. The form stays open.`
+        : `Checking permissioned-DEX amendments on ${network}.`}
+    </div>
+  )
+}
+
 export default function PermissionedDexPage() {
   const [tab,       setTab]       = useState('credentials')
   const [domainID,  setDomainID]  = useState('')  // flows from Domains → Trading
@@ -814,11 +832,7 @@ export default function PermissionedDexPage() {
       </div>
 
       {/* Amendment notice */}
-      <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-        ⚠ Requires the <strong>PermissionedDEX</strong>, <strong>PermissionedDomains</strong>, and&nbsp;
-        <strong>Credentials</strong> amendments. Currently available on <strong>devnet</strong> only.
-        Transactions will fail on testnet/mainnet until these amendments activate.
-      </div>
+      <RailNotice />
 
       <div className="grid-2">
         <div className="flow">

@@ -468,7 +468,7 @@ function FTPanel() {
 // ─── NFT panel ──────────────────────────────────────────────────────────────
 
 function NFTPanel() {
-  const { xrpl, wallet, ensureConnected, addTx } = useXrpl()
+  const { xrpl, wallet, network, ensureConnected, addTx } = useXrpl()
 
   // Mint fields
   const [taxon,       setTaxon]       = useState('0')
@@ -544,15 +544,15 @@ function NFTPanel() {
   }
 
   const fetchNfts = useCallback(async () => {
-    if (!wallet) return
+    if (!wallet) { setMyNfts([]); return }
     setLoadingNfts(true)
     try {
       const c = await ensureConnected()
       const r = await c.request({ command: 'account_nfts', account: wallet.address, ledger_index: 'validated' })
       setMyNfts(r.result.account_nfts ?? [])
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); setMyNfts([]) }
     finally { setLoadingNfts(false) }
-  }, [wallet, ensureConnected])
+  }, [wallet, network, ensureConnected])
 
   useEffect(() => { if (wallet && tab === 'nfts') fetchNfts() }, [wallet, tab, fetchNfts])
 
@@ -1009,7 +1009,7 @@ function NFTPanel() {
 // ─── MPT panel ──────────────────────────────────────────────────────────────
 
 function MPTPanel() {
-  const { xrpl, wallet, ensureConnected, addTx } = useXrpl()
+  const { xrpl, wallet, network, ensureConnected, addTx } = useXrpl()
 
   // MPTokenIssuanceCreate fields
   const [assetScale,    setAssetScale]    = useState('2')
@@ -1106,7 +1106,7 @@ function MPTPanel() {
   }
 
   const fetchIssuances = useCallback(async () => {
-    if (!wallet) return
+    if (!wallet) { setIssuances([]); return }
     setLoadingIss(true)
     try {
       const c = await ensureConnected()
@@ -1117,9 +1117,9 @@ function MPTPanel() {
         ledger_index: 'validated',
       })
       setIssuances(r.result.account_objects ?? [])
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); setIssuances([]) }
     finally { setLoadingIss(false) }
-  }, [wallet, ensureConnected])
+  }, [wallet, network, ensureConnected])
 
   useEffect(() => { if (wallet && tab === 'issuances') fetchIssuances() }, [wallet, tab, fetchIssuances])
 

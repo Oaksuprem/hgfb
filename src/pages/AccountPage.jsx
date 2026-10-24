@@ -18,7 +18,7 @@ export default function AccountPage() {
     try {
       const c = await ensureConnected()
       setBalance(await c.getXrpBalance(wallet.address))
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); setBalance(null) }
     finally { setRefreshing(false) }
   }
 
@@ -26,7 +26,7 @@ export default function AccountPage() {
     if (wallet) refreshBalance()
     else setBalance(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet])
+  }, [wallet, network])
 
   const getNewAccount = async () => {
     if (network === 'mainnet') { setError('Live rail is closed for instant open. Import a book instead.'); return }

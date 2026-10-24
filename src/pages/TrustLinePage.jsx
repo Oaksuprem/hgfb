@@ -51,15 +51,15 @@ export default function TrustLinePage() {
   }
 
   const fetchLines = useCallback(async () => {
-    if (!wallet) return
+    if (!wallet) { setLines([]); return }
     setLoadingLines(true)
     try {
       const c = await ensureConnected()
       const r = await c.request({ command: 'account_lines', account: wallet.address, ledger_index: 'validated' })
       setLines(r.result.lines || [])
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); setLines([]) }
     finally { setLoadingLines(false) }
-  }, [wallet, ensureConnected])
+  }, [wallet, network, ensureConnected])
 
   useEffect(() => { fetchLines() }, [fetchLines])
 

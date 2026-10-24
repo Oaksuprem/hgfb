@@ -67,7 +67,7 @@ export default function WalletCard({ balance, onRefresh, refreshing }) {
         </div>
       </div>
 
-      <p className="muted" style={{ margin: '8px 0 0' }}>Your private key stays in this browser for self-custody.</p>
+      <p className="muted" style={{ margin: '8px 0 0' }}>Your private key stays in local storage for self-custody. Each rail shows this account’s balance, assets, and history.</p>
 
       <div className="wallet-actions">
         {onRefresh && (

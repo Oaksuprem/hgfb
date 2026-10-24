@@ -102,15 +102,15 @@ export default function DexPage() {
   }
 
   const fetchOffers = useCallback(async () => {
-    if (!wallet) return
+    if (!wallet) { setOffers([]); return }
     setLoadingOffers(true)
     try {
       const c = await ensureConnected()
       const r = await c.request({ command: 'account_offers', account: wallet.address, ledger_index: 'validated' })
       setOffers(r.result.offers || [])
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); setOffers([]) }
     finally { setLoadingOffers(false) }
-  }, [wallet, ensureConnected])
+  }, [wallet, network, ensureConnected])
 
   const cancelOffer = async (seq) => {
     if (!wallet) return

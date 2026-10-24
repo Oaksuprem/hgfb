@@ -1,5 +1,18 @@
 const KEY = 'xrpl-wallet'
 const HANDOFF = 'hgfb1:'
+const RAILS = ['devnet', 'testnet', 'mainnet']
+
+function currentNetwork() {
+  try {
+    const n = localStorage.getItem('xrpl-network')
+    if (RAILS.includes(n)) return n
+  } catch { /* private mode */ }
+  return 'devnet'
+}
+
+function slotKey(network) {
+  return `${KEY}:${network}`
+}
 
 function readJson(raw) {
   if (!raw) return null
@@ -7,6 +20,37 @@ function readJson(raw) {
     const book = JSON.parse(raw)
     if (book && book.address && (book.seed || book.privateKey)) return book
   } catch { /* ignore corrupt storage */ }
+  return null
+}
+
+function stripRail(book) {
+  if (!book) return null
+  const { rail, ...rest } = book
+  if (!rest.address || !(rest.seed || rest.privateKey)) return null
+  return rest
+}
+
+function writeBook(book) {
+  try {
+    if (book) localStorage.setItem(KEY, JSON.stringify(book))
+    else localStorage.removeItem(KEY)
+  } catch { /* private mode */ }
+}
+
+function clearSlots() {
+  try {
+    for (const network of RAILS) localStorage.removeItem(slotKey(network))
+  } catch { /* private mode */ }
+}
+
+function readSlotBook() {
+  const order = [currentNetwork(), ...RAILS.filter(network => network !== currentNetwork())]
+  try {
+    for (const network of order) {
+      const book = readJson(localStorage.getItem(slotKey(network)))
+      if (book) return stripRail(book)
+    }
+  } catch { /* private mode */ }
   return null
 }
 
@@ -29,25 +73,33 @@ function readCookie() {
   return null
 }
 
-function writeCookie(book) {
+function clearCookie() {
   try {
-    const value = book ? encodeURIComponent(JSON.stringify(book)) : ''
-    const maxAge = book ? 60 * 60 * 24 * 365 : 0
-    const attrs = `Path=/; SameSite=Lax; Max-Age=${maxAge}`
+    const attrs = 'Path=/; SameSite=Lax; Max-Age=0'
+    document.cookie = `hgfb-wallet=; ${attrs}`
     const domain = cookieDomain()
-    document.cookie = `hgfb-wallet=${value}; ${attrs}`
-    if (domain) document.cookie = `hgfb-wallet=${value}; ${attrs}; Domain=${domain}`
-  } catch { /* storage may be blocked */ }
+    if (domain) document.cookie = `hgfb-wallet=; ${attrs}; Domain=${domain}`
+  } catch { /* cookies unavailable */ }
 }
 
-function writeLocal(book) {
-  try {
-    if (book) localStorage.setItem(KEY, JSON.stringify(book))
-    else localStorage.removeItem(KEY)
-  } catch { /* private mode */ }
+function readStored() {
+  let book = null
+  try { book = readJson(localStorage.getItem(KEY)) } catch { book = null }
+  if (!book) {
+    try { book = readJson(sessionStorage.getItem(KEY)) } catch { book = null }
+  }
+  if (!book) book = readCookie()
+  if (!book) book = readSlotBook()
+  return stripRail(book)
 }
 
-export function consumeHandoff() {
+function clearExtras() {
+  try { sessionStorage.removeItem(KEY) } catch { /* ignore */ }
+  clearSlots()
+  clearCookie()
+}
+
+function consumeHandoff() {
   try {
     if (typeof window.name === 'string' && window.name.startsWith(HANDOFF)) {
       const book = readJson(window.name.slice(HANDOFF.length))
@@ -58,42 +110,46 @@ export function consumeHandoff() {
   return null
 }
 
-export function stageBookForHandoff(book) {
+function adoptHandoff() {
+  const handed = consumeHandoff()
+  if (!handed) return
+  const book = stripRail(handed)
+  if (!book) return
+  writeBook(book)
+  clearExtras()
+  if (RAILS.includes(handed.rail)) {
+    try { localStorage.setItem('xrpl-network', handed.rail) } catch { /* ignore */ }
+  }
+}
+
+export function stageBookForHandoff(book, network) {
   try {
-    window.name = book ? HANDOFF + JSON.stringify(book) : ''
+    if (!book) { window.name = ''; return }
+    const rail = RAILS.includes(network) ? network : currentNetwork()
+    window.name = HANDOFF + JSON.stringify({ ...book, rail })
   } catch { /* ignore */ }
 }
 
+export function prepareBooks() {
+  adoptHandoff()
+}
+
 export function loadBook() {
-  const handed = consumeHandoff()
-  if (handed) {
-    writeLocal(handed)
-    writeCookie(handed)
-    return handed
+  const book = readStored()
+  if (book) {
+    writeBook(book)
+    clearExtras()
   }
-
-  let book = null
-  try { book = readJson(localStorage.getItem(KEY)) } catch { book = null }
-
-  if (!book) {
-    try { book = readJson(sessionStorage.getItem(KEY)) } catch { book = null }
-    if (book) {
-      writeLocal(book)
-      writeCookie(book)
-      try { sessionStorage.removeItem(KEY) } catch { /* ignore */ }
-    }
-  }
-
-  if (!book) {
-    book = readCookie()
-    if (book) writeLocal(book)
-  }
-
   return book
 }
 
 export function saveBook(book) {
-  writeLocal(book)
-  writeCookie(book)
-  try { sessionStorage.removeItem(KEY) } catch { /* ignore */ }
+  const clean = book ? stripRail(book) : null
+  writeBook(clean)
+  clearExtras()
+}
+
+export function confirmLiveRail(net) {
+  if (net !== 'mainnet') return true
+  return window.confirm('Switch to the live XRP Ledger? Transactions on this rail move real value. This device keeps one book, and each rail shows that account’s balance, assets, and history.')
 }

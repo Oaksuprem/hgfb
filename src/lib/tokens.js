@@ -1,8 +1,10 @@
 import directory from '../data/tokens.json'
 
 function rowsFor(network) {
-  const rows = directory[network] || []
-  return rows.filter(row => row && row.code && row.code !== 'XRP' && row.issuer)
+  const rows = network === 'mainnet'
+    ? directory.mainnet
+    : (directory.test || directory.devnet || directory.testnet)
+  return (rows || []).filter(row => row && row.code && row.code !== 'XRP' && row.issuer)
 }
 
 export function listTokens(network, { allowXrp = true } = {}) {

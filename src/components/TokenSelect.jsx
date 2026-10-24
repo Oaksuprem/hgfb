@@ -26,10 +26,9 @@ export default function TokenSelect({
         ))}
       </select>
       {current.issuer ? (
-        <p className="token-issuer">
-          Issuer {current.issuer}
-          {network !== 'mainnet' ? ' · listed in the token directory for this rail' : ''}
-        </p>
+        <p className="token-issuer">Issuer {current.issuer}</p>
+      ) : options.length === 1 ? (
+        <p className="token-issuer">No issued assets are listed for this rail. XRP is ready.</p>
       ) : null}
     </div>
   )

@@ -698,6 +698,24 @@ const OUTER_TABS = [
   { key: 'inspect',   label: '6 Inspect'   },
 ]
 
+function RailNotice() {
+  const { network, connected, featureEnabled } = useXrpl()
+  const enabled = featureEnabled('ConfidentialTransfer')
+  if (enabled === true) {
+    return <div className="alert alert-success" style={{ marginBottom: 12 }}>Confidential transfers are enabled on {network}.</div>
+  }
+  if (enabled === false) {
+    return <div className="alert alert-warning" style={{ marginBottom: 12 }}>ConfidentialTransfer is not enabled on {network}. A transaction here will be rejected.</div>
+  }
+  return (
+    <div className="alert alert-info" style={{ marginBottom: 12 }}>
+      {connected
+        ? `ConfidentialTransfer status is not available on ${network} yet. The form stays open.`
+        : `Checking ConfidentialTransfer on ${network}.`}
+    </div>
+  )
+}
+
 export default function ConfidentialTokensPage() {
   const [tab,        setTab]        = useState('issue')
   const [issuanceID, setIssuanceID] = useState('')
@@ -715,12 +733,7 @@ export default function ConfidentialTokensPage() {
       </div>
 
       {/* Amendment notice */}
-      <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-        ⚠ Requires the <strong>ConfidentialTransfer</strong> amendment and <strong>xrpl.js v5.1+</strong>.
-        Available on <strong>devnet</strong>. Also requires helper functions
-        (<code>deriveConfidentialKeypair</code>, <code>prepareConfidentialConvert</code>, etc.) — older
-        builds will surface a clear error with an upgrade prompt.
-      </div>
+      <RailNotice />
 
       <div className="grid-2">
         <div className="flow">

@@ -5,17 +5,19 @@ import InstallBanner from '../components/InstallBanner'
 import PortalJump from '../components/PortalJump'
 import { adminOrigin } from '../lib/hosts'
 import { loadBook, stageBookForHandoff } from '../lib/walletStore'
+import { useXrpl } from '../context/XrplContext'
 import IssueNavbar from './IssueNavbar.jsx'
 
 function IssueAliasRedirect() {
+  const { network } = useXrpl()
   useEffect(() => {
     const host = window.location.hostname.toLowerCase()
     const onAdmin = host === 'admin.localhost' || host.startsWith('admin.')
     if (onAdmin) return
-    stageBookForHandoff(loadBook())
+    stageBookForHandoff(loadBook(), network)
     const next = adminOrigin() + window.location.pathname + window.location.search + window.location.hash
     if (!next.startsWith(window.location.origin)) window.location.replace(next)
-  }, [])
+  }, [network])
   return null
 }
 import IssuePage from '../pages/IssuePage.jsx'

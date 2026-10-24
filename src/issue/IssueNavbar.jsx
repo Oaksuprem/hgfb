@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useState } from 'react'
 import { useXrpl } from '../context/XrplContext'
 import { bankOrigin } from '../lib/hosts'
-import { loadBook, stageBookForHandoff } from '../lib/walletStore'
+import { confirmLiveRail, loadBook, stageBookForHandoff } from '../lib/walletStore'
 
 const TABS = [
   { path: '/issue', label: 'Issue' },
@@ -17,6 +17,7 @@ export default function IssueNavbar() {
 
   const handleNet = async (net) => {
     if (net === network) return
+    if (!confirmLiveRail(net)) return
     setSwitching(true)
     try { await connect(net) } catch (e) { console.error(e) }
     finally { setSwitching(false) }
@@ -50,7 +51,7 @@ export default function IssueNavbar() {
           <a
             className="nav-tab"
             href={bankOrigin() + '/account'}
-            onClick={() => stageBookForHandoff(loadBook())}
+            onClick={() => stageBookForHandoff(loadBook(), network)}
           >Bank</a>
         </div>
 

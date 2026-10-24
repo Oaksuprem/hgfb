@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import * as xrpl from 'xrpl'
 import { normalizeAccountTx } from '../lib/tx'
-import { loadBook, saveBook } from '../lib/walletStore'
+import { loadBook, prepareBooks, saveBook } from '../lib/walletStore'
 
 const XrplContext = createContext(null)
 
@@ -42,20 +42,27 @@ function withKeys(book) {
   }
 }
 
+function bootBook() {
+  prepareBooks()
+  const book = withKeys(loadBook())
+  if (book) saveBook(book)
+  return { rail: savedNetwork(), book }
+}
+
 export function XrplProvider({ children }) {
-  const [network,    setNetwork]    = useState(savedNetwork)
+  const booted = useState(bootBook)[0]
+  const [network,    setNetwork]    = useState(booted.rail)
   const [connected,  setConnected]  = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [wallet,     setWalletState]= useState(() => {
-    const book = withKeys(loadBook())
-    if (book?.privateKey) saveBook(book)
-    return book
-  })
+  const [features,   setFeatures]   = useState(null)
+  const [wallet,     setWalletState]= useState(booted.book)
   const [txHistory,  setTxHistory]  = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const clientRef = useRef(null)
   const walletRef = useRef(wallet)
+  const networkRef = useRef(network)
   walletRef.current = wallet
+  networkRef.current = network
 
   const setWallet = useCallback((w) => {
     const book = w ? withKeys(w) : null
@@ -64,8 +71,9 @@ export function XrplProvider({ children }) {
   }, [])
 
   const connect = useCallback(async (net) => {
-    const target = net || network
+    const target = net || networkRef.current
     setConnecting(true)
+    setFeatures(null)
     try {
       if (clientRef.current) {
         try { await clientRef.current.disconnect() } catch (_) {}
@@ -75,7 +83,16 @@ export function XrplProvider({ children }) {
       clientRef.current = c
       setConnected(true)
       setNetwork(target)
+      networkRef.current = target
       try { localStorage.setItem('xrpl-network', target) } catch (_) {}
+      try {
+        const listed = await c.request({ command: 'feature' })
+        const map = {}
+        for (const entry of Object.values(listed.result?.features || {})) {
+          if (entry && entry.name) map[entry.name] = entry.enabled === true
+        }
+        setFeatures(map)
+      } catch { setFeatures({}) }
       return c
     } catch (err) {
       setConnected(false)
@@ -83,7 +100,7 @@ export function XrplProvider({ children }) {
     } finally {
       setConnecting(false)
     }
-  }, [network])
+  }, [])
 
   const disconnect = useCallback(async () => {
     if (clientRef.current) {
@@ -172,12 +189,18 @@ export function XrplProvider({ children }) {
     }
   }, [wallet?.address, connected, network, ensureConnected, refreshHistory])
 
+  const featureEnabled = useCallback((name) => {
+    if (!features || !Object.prototype.hasOwnProperty.call(features, name)) return null
+    return features[name] === true
+  }, [features])
+
   return (
     <XrplContext.Provider value={{
       network, connected, connecting,
       wallet, setWallet,
       txHistory, addTx, refreshHistory, historyLoading,
       connect, disconnect, ensureConnected,
+      featureEnabled,
       xrpl,
     }}>
       {children}
