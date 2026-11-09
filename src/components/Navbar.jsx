@@ -5,11 +5,12 @@ import { adminOrigin } from '../lib/hosts'
 import { confirmLiveRail, loadBook, stageBookForHandoff } from '../lib/walletStore'
 
 const TABS = [
-  { path: '/account',    label: 'Bank'    },
-  { path: '/send',       label: 'Pay'     },
-  { path: '/trustlines', label: 'Assets'  },
-  { path: '/dex',        label: 'Invest'  },
-  { path: '/sponsor',    label: 'Co-sign' },
+  { path: '/account',    label: 'Bank'     },
+  { path: '/send',       label: 'Pay'      },
+  { path: '/trustlines', label: 'Assets'   },
+  { path: '/dex',        label: 'Invest'   },
+  { path: '/activate',   label: 'Activate' },
+  { path: '/sponsor',    label: 'Co-sign'  },
 ]
 
 export default function Navbar() {

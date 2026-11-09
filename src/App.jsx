@@ -10,6 +10,7 @@ import TrustLinePage from './pages/TrustLinePage'
 import DexPage from './pages/DexPage'
 import SponsorPage from './pages/SponsorPage'
 import MultisignPage from './pages/MultisignPage'
+import ActivatePage from './pages/ActivatePage'
 import { isIssueHost, isSameOriginAdminPath } from './lib/hosts'
 import IssueApp from './issue/IssueApp.jsx'
 
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/dex" element={<DexPage />} />
           <Route path="/sponsor" element={<SponsorPage />} />
           <Route path="/multisign" element={<MultisignPage />} />
+          <Route path="/activate" element={<ActivatePage />} />
           <Route path="/issue" element={<PortalJump portal="admin" path="/issue" />} />
           <Route path="/oracle" element={<PortalJump portal="admin" path="/oracle" />} />
           <Route path="/permissioned-dex" element={<PortalJump portal="admin" path="/permissioned-dex" />} />
