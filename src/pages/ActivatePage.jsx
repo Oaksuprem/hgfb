@@ -77,7 +77,7 @@ export default function ActivatePage() {
     if (!wallet)        { setFundError('Open your book on Bank first.'); return }
     if (!dest)          { setFundError('Destination address is required.'); return }
     if (!xrpl.isValidAddress(dest)) { setFundError('Not a valid XRPL address.'); return }
-    if (dest === wallet.address)    { setFundError('You can't fund your own address.'); return }
+    if (dest === wallet.address)    { setFundError('You cannot fund your own address.'); return }
     const amt = parseFloat(fundAmount)
     if (!amt || amt < reserve) {
       setFundError(`Minimum is ${reserve} XRP to meet the base reserve on ${network}.`)

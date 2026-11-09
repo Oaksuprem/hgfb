@@ -45,6 +45,7 @@ export default function IssueApp() {
           <Route path="/dex" element={<PortalJump portal="bank" path="/dex" />} />
           <Route path="/sponsor" element={<PortalJump portal="bank" path="/sponsor" />} />
           <Route path="/multisign" element={<PortalJump portal="bank" path="/multisign" />} />
+          <Route path="/activate" element={<PortalJump portal="bank" path="/activate" />} />
           <Route path="*" element={<Navigate to="/issue" replace />} />
         </Routes>
       </BrowserRouter>
