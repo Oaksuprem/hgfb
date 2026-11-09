@@ -1,4 +1,5 @@
 import * as xrpl from 'xrpl'
+import { formatAmount, formatBalanceChange } from './holdings.js'
 
 const TYPE_LABELS = {
   Payment: 'Payment',
@@ -40,16 +41,7 @@ export function unwrapAccountTx(wrap) {
 }
 
 function fmtIssued(amt) {
-  if (amt == null) return null
-  if (typeof amt === 'string') {
-    try { return `${xrpl.dropsToXrp(amt)} XRP` } catch { return `${amt} drops` }
-  }
-  if (amt.mpt_issuance_id) return `${amt.value} MPT ${String(amt.mpt_issuance_id).slice(0, 8)}…`
-  if (amt.value && amt.currency) {
-    const code = amt.currency.length === 40 ? amt.currency.slice(0, 8) + '…' : amt.currency
-    return `${amt.value} ${code}`
-  }
-  return null
+  return formatAmount(amt)
 }
 
 function deliveredLine(tx, meta) {
@@ -70,12 +62,7 @@ function balanceLine(meta, address) {
     const changes = xrpl.getBalanceChanges(meta)
     const mine = changes.find(c => c.account === address)
     if (!mine?.balances?.length) return null
-    return mine.balances.map(b => {
-      const n = Number(b.value)
-      const sign = n > 0 ? '+' : ''
-      const cur = b.currency === 'XRP' ? 'XRP' : (b.currency?.length === 40 ? b.currency.slice(0, 8) + '…' : b.currency)
-      return `${sign}${b.value} ${cur}`
-    }).join('  ·  ')
+    return mine.balances.map(formatBalanceChange).join('  ·  ')
   } catch {
     return null
   }

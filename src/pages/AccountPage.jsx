@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useXrpl } from '../context/XrplContext'
+import { instantOpenAllowed } from '../lib/account'
 import WalletCard from '../components/WalletCard'
 import TxHistory from '../components/TxHistory'
 
@@ -29,7 +30,7 @@ export default function AccountPage() {
   }, [wallet, network])
 
   const getNewAccount = async () => {
-    if (network === 'mainnet') { setError('Live rail is closed for instant open. Import a book instead.'); return }
+    if (!instantOpenAllowed(network)) { setError('Live rail is closed for instant open. Import a book instead.'); return }
     setLoading(true); setError(''); setInfo('')
     try {
       const c = await ensureConnected()
@@ -80,10 +81,10 @@ export default function AccountPage() {
             <p className="muted">
               Instant funded access on {network}. Built for test rails — Devnet and Testnet only.
             </p>
-            <button className="btn btn-primary btn-full" onClick={getNewAccount} disabled={loading || network === 'mainnet'}>
+            <button className="btn btn-primary btn-full" onClick={getNewAccount} disabled={loading || !instantOpenAllowed(network)}>
               {loading ? (<><span className="spinner"></span> Opening…</>) : 'Open with HGFB'}
             </button>
-            {network === 'mainnet' && (
+            {!instantOpenAllowed(network) && (
               <div className="alert alert-warning" style={{ marginTop: 8 }}>
                 Instant open is paused on Live. Import an existing book.
               </div>

@@ -5,7 +5,7 @@ import TxModal from '../components/TxModal'
 import TokenSelect from '../components/TokenSelect'
 import { useTxBatch } from '../hooks/transactions/useTxBatch'
 import BatchProgress from '../components/BatchProgress'
-import { defaultTokenId, tokenById } from '../lib/tokens'
+import { defaultTokenId, tokenById, trustLimit } from '../lib/tokens'
 
 export default function TrustLinePage() {
   const { xrpl, wallet, network, ensureConnected, addTx } = useXrpl()
@@ -40,7 +40,7 @@ export default function TrustLinePage() {
       return {
         TransactionType: 'TrustSet',
         Account: wallet.address,
-        LimitAmount: { currency: token.code, issuer: token.issuer, value: r.limit },
+        LimitAmount: trustLimit(token, r.limit),
       }
     })
     const seqs = await batch.createTicketBatch(txs.length)
@@ -74,7 +74,7 @@ export default function TrustLinePage() {
       const result = await c.submitAndWait({
         TransactionType: 'TrustSet',
         Account: wallet.address,
-        LimitAmount: { currency: token.code, issuer: token.issuer, value: limit },
+        LimitAmount: trustLimit(token, limit),
       }, { wallet: w })
       setTxResult(result)
       const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
