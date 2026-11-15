@@ -13,6 +13,7 @@ import WalletCard from '../components/WalletCard'
 import { useTxBatch } from '../hooks/transactions/useTxBatch'
 import BatchProgress from '../components/BatchProgress'
 import { buildMintNFT, buildAuthorizeMPT, buildDistributeMPT } from '../services/TokenService'
+import { accountLines, rippleRepairNote, rippleRepairTransactions } from '../lib/pathfix'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ function FTPanel() {
   const [tab,      setTab]      = useState('configure')
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+  const [rippleNote, setRippleNote] = useState('')
   const [txResult, setTxResult] = useState(null)
 
   const ASF_FLAGS = [
@@ -166,6 +168,33 @@ function FTPanel() {
       setTxResult(last)
       addTx()
     } catch (e) { setError('AccountSet failed: ' + e.message) }
+    finally { setLoading(false) }
+  }
+
+  const enableExistingRipple = async () => {
+    if (!wallet) { setError('Open a book first — Bank tab.'); return }
+    setLoading(true); setError(''); setRippleNote('')
+    try {
+      const c = await ensureConnected()
+      const w = xrpl.Wallet.fromSeed(wallet.seed)
+      const info = await c.request({ command: 'account_info', account: wallet.address, ledger_index: 'validated' })
+      const lines = await accountLines(c, wallet.address)
+      const repairs = rippleRepairTransactions({
+        account: wallet.address,
+        flags: info.result.account_data.Flags,
+        lines,
+      })
+      let cleared = 0
+      for (const tx of repairs) {
+        const result = await c.submitAndWait(tx, { wallet: w })
+        if (result.result.meta.TransactionResult !== 'tesSUCCESS') {
+          throw new Error(result.result.meta.TransactionResult || 'Could not enable rippling')
+        }
+        if (tx.TransactionType === 'TrustSet') cleared += 1
+      }
+      setRippleNote(rippleRepairNote(cleared))
+      addTx()
+    } catch (e) { setError('Could not enable rippling: ' + e.message) }
     finally { setLoading(false) }
   }
 
@@ -338,6 +367,13 @@ function FTPanel() {
           <button className="btn btn-primary btn-full" onClick={configureIssuer} disabled={loading || !wallet}>
             {loading ? <><span className="spinner"></span> Applying…</> : 'Apply issuer settings'}
           </button>
+          <p className="muted" style={{ marginTop: 12 }}>
+            Default rippling applies to lines opened afterward. Existing lines keep No Ripple until you clear them, which is why holder-to-holder payments return tecPATH_DRY.
+          </p>
+          <button className="btn btn-secondary btn-full" onClick={enableExistingRipple} disabled={loading || !wallet}>
+            {loading ? <><span className="spinner"></span> Updating lines…</> : 'Enable rippling on existing lines'}
+          </button>
+          {rippleNote && <div className="alert alert-success" style={{ marginTop: 10 }}>{rippleNote}</div>}
         </div>
       )}
 

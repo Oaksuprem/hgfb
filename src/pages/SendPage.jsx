@@ -5,6 +5,7 @@ import TxHistory from '../components/TxHistory'
 import TokenSelect from '../components/TokenSelect'
 import { txOutcome } from '../lib/tx'
 import { amountOf, tokenById } from '../lib/tokens'
+import { findCurrencyLine, linesWithPeer, planFromLines } from '../lib/pathfix'
 
 export default function SendPage() {
   const { xrpl, wallet, network, ensureConnected, addTx } = useXrpl()
@@ -15,6 +16,7 @@ export default function SendPage() {
   const [memo,     setMemo]     = useState('')
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+  const [info,     setInfo]     = useState('')
 
   const validate = () => {
     if (!wallet)               return 'Open a book first — Bank tab.'
@@ -33,12 +35,31 @@ export default function SendPage() {
   const send = async () => {
     const err = validate()
     if (err) { setError(err); return }
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setInfo('')
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
       const token = tokenById(network, tokenId)
-      const amt = amountOf(xrpl, token, amount)
+      let sendValue = amount
+      if (token.code !== 'XRP') {
+        const issuer = token.issuer
+        const [issuerInfo, senderLines, destLines] = await Promise.all([
+          c.request({ command: 'account_info', account: issuer, ledger_index: 'validated' }),
+          wallet.address === issuer ? Promise.resolve([]) : linesWithPeer(c, wallet.address, issuer),
+          linesWithPeer(c, dest.trim(), issuer),
+        ])
+        const plan = planFromLines({
+          amount,
+          senderIsIssuer: wallet.address === issuer,
+          senderLine: findCurrencyLine(senderLines, token.code),
+          destLine: findCurrencyLine(destLines, token.code),
+          transferRate: issuerInfo.result.account_data.TransferRate,
+        })
+        if (!plan.ok) { setError(plan.message); return }
+        sendValue = plan.amount
+        if (plan.note) setInfo(plan.note)
+      }
+      const amt = amountOf(xrpl, token, sendValue)
 
       const tx = { TransactionType: 'Payment', Account: wallet.address, Destination: dest.trim(), Amount: amt }
       if (destTag) tx.DestinationTag = Number(destTag)
@@ -50,7 +71,12 @@ export default function SendPage() {
       const { ok, tes } = txOutcome(result)
       addTx()
       if (!ok) setError(tes || 'Didn’t clear')
-    } catch (e) { setError('Payment didn’t land: ' + e.message) }
+    } catch (e) {
+      const msg = e?.message || String(e)
+      setError(/actNotFound/.test(msg)
+        ? 'The receiver has no account or no trust line for this asset yet.'
+        : 'Payment didn’t land: ' + msg)
+    }
     finally { setLoading(false) }
   }
 
@@ -66,6 +92,7 @@ export default function SendPage() {
         <div className="flow">
           {!wallet && <div className="alert alert-warning">Open a book on Bank first. Then this gets easy.</div>}
           {error    && <div className="alert alert-danger">{error}</div>}
+          {info     && <div className="alert alert-success">{info}</div>}
 
           <div className="glass-card">
             <div className="section-title">Payment</div>
