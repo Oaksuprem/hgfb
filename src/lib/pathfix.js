@@ -11,21 +11,72 @@ export function effectiveTransferRate(rate) {
   return n
 }
 
-function trimAmount(n) {
+export function floorAmount(value) {
+  const n = Number(value)
   if (!(n > 0) || !Number.isFinite(n)) return '0'
-  return n.toFixed(8).replace(/\.?0+$/, '')
+  const decimals = n >= 1e7 ? 6 : 8
+  const factor = 10 ** decimals
+  const units = Math.floor(n * factor + 1e-9)
+  if (units <= 0) return '0'
+  const whole = Math.floor(units / factor)
+  const frac = units - whole * factor
+  if (!frac) return String(whole)
+  return `${whole}.${String(frac).padStart(decimals, '0').replace(/0+$/, '')}`
+}
+
+export function ceilAmount(value) {
+  const n = Number(value)
+  if (!(n > 0) || !Number.isFinite(n)) return '0'
+  const decimals = n >= 1e7 ? 6 : 8
+  const factor = 10 ** decimals
+  const units = Math.ceil(n * factor - 1e-9)
+  if (units <= 0) return '0'
+  const whole = Math.floor(units / factor)
+  const frac = units - whole * factor
+  if (!frac) return String(whole)
+  return `${whole}.${String(frac).padStart(decimals, '0').replace(/0+$/, '')}`
+}
+
+export function paymentSendMax({ amount, transferRate, senderIsIssuer, balance, sourceAmount }) {
+  if (senderIsIssuer) return null
+  const rate = effectiveTransferRate(transferRate)
+  let needed = null
+  if (rate !== RATE_NEUTRAL) needed = ceilAmount(Number(amount) * rate / RATE_NEUTRAL)
+  if (sourceAmount && Number(sourceAmount) > Number(needed || 0)) needed = ceilAmount(sourceAmount)
+  if (!needed || needed === '0') return null
+  if (balance != null && Number(needed) > Number(balance)) {
+    const capped = floorAmount(balance)
+    if (!(Number(capped) > 0)) return null
+    if (Number(needed) - Number(capped) > Math.max(Number(capped) * 1e-6, 1e-6)) return null
+    return capped
+  }
+  return needed
 }
 
 export function sourceRequired(destinationAmount, transferRate) {
   const dest = Number(destinationAmount)
   if (!(dest > 0)) return '0'
-  return trimAmount(dest * effectiveTransferRate(transferRate) / RATE_NEUTRAL)
+  return String(dest * effectiveTransferRate(transferRate) / RATE_NEUTRAL)
 }
 
 export function maxDeliverable(balance, transferRate) {
   const bal = Number(balance)
+  const rate = effectiveTransferRate(transferRate)
   if (!(bal > 0)) return '0'
-  return trimAmount(bal * RATE_NEUTRAL / effectiveTransferRate(transferRate))
+  if (rate === RATE_NEUTRAL) return floorAmount(bal)
+  let deliver = bal * RATE_NEUTRAL / rate
+  for (let step = 0; step < 8 && deliver > 0; step++) {
+    const candidate = floorAmount(deliver)
+    const cost = Number(candidate) * rate / RATE_NEUTRAL
+    if (Number(candidate) > 0 && cost <= bal) return candidate
+    deliver = Number(candidate) * (bal / cost) * 0.999999
+  }
+  return '0'
+}
+
+export function amountNote(requested, sending) {
+  if (!(Number(sending) + 1e-10 < Number(requested))) return ''
+  return `Sending ${sending} so the payment can clear. ${requested} is more than the balance, the issuer transfer fee, or the receiver’s remaining trust limit can deliver.`
 }
 
 export function lineRoom(line) {
@@ -125,11 +176,55 @@ export function planIssuedSend({
     }
   }
 
-  const fitted = trimAmount(deliver)
-  const note = Number(fitted) + 1e-10 < requested
-    ? `Sending ${fitted} so the payment can clear. ${amount} does not fit the balance, the issuer transfer fee, or the receiver’s remaining trust limit.`
-    : ''
+  const fitted = floorAmount(deliver)
+  const note = amountNote(amount, fitted)
   return { ok: true, amount: fitted, note, code: note ? 'tecPATH_PARTIAL' : '' }
+}
+
+export async function clearingAmount(client, { source, destination, currency, issuer, amount }) {
+  const requested = String(amount)
+  const ask = async (value) => {
+    if (!(Number(value) > 0)) return { ok: false }
+    try {
+      const result = await client.request({
+        command: 'ripple_path_find',
+        source_account: source,
+        destination_account: destination,
+        destination_amount: { currency, issuer, value: String(value) },
+        source_currencies: [{ currency, issuer }],
+        ledger_index: 'validated',
+      })
+      const alt = (result.result.alternatives || [])[0]
+      if (!alt) return { ok: false }
+      const src = alt.source_amount
+      return { ok: true, source: src && typeof src === 'object' ? src.value : null }
+    } catch {
+      return { ok: null }
+    }
+  }
+
+  const full = await ask(requested)
+  if (full.ok === null) return { amount: requested, checked: false }
+  if (full.ok) return { amount: requested, checked: true, sourceAmount: full.source }
+
+  let best = '0'
+  let bestSource = null
+  let lo = 0
+  let hi = Number(requested)
+  for (let step = 0; step < 12 && hi - lo > Math.max(hi * 1e-8, 1e-8); step++) {
+    const mid = floorAmount((lo + hi) / 2)
+    if (!(Number(mid) > lo)) break
+    const probe = await ask(mid)
+    if (probe.ok === null) return { amount: requested, checked: false }
+    if (probe.ok) {
+      best = mid
+      bestSource = probe.source
+      lo = Number(mid)
+    } else {
+      hi = Number(mid)
+    }
+  }
+  return { amount: best, checked: true, sourceAmount: bestSource }
 }
 
 export function planFromLines({ amount, senderIsIssuer, senderLine, destLine, transferRate }) {

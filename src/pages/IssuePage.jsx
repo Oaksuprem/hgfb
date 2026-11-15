@@ -14,6 +14,7 @@ import { useTxBatch } from '../hooks/transactions/useTxBatch'
 import BatchProgress from '../components/BatchProgress'
 import { buildMintNFT, buildAuthorizeMPT, buildDistributeMPT } from '../services/TokenService'
 import { accountLines, rippleRepairNote, rippleRepairTransactions } from '../lib/pathfix'
+import { buildPayment, ledgerErrorMessage, prepareIssuedPayment } from '../lib/payments'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ function FTPanel() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
   const [rippleNote, setRippleNote] = useState('')
+  const [info, setInfo] = useState('')
   const [txResult, setTxResult] = useState(null)
 
   const ASF_FLAGS = [
@@ -203,33 +205,50 @@ function FTPanel() {
     if (!ftDest.trim())     { setError('Destination address required.'); return }
     if (!ftCurrency.trim()) { setError('Currency code required.'); return }
     if (!ftAmount)          { setError('Amount required.'); return }
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setInfo('')
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
-      const tx = {
-        TransactionType: 'Payment',
-        Account: wallet.address,
-        Destination: ftDest.trim(),
-        Amount: {
-          currency: ftCurrency.trim().toUpperCase(),
-          issuer: wallet.address,
-          value: ftAmount,
-        },
-      }
+      const currency = ftCurrency.trim().toUpperCase()
+      let tx
+      let sentAmount = ftAmount
       if (ftPartial) {
-        tx.Flags = 0x00020000 // tfPartialPayment
-        if (ftSendMax) tx.SendMax = { currency: ftCurrency.trim().toUpperCase(), issuer: wallet.address, value: ftSendMax }
-        if (ftDeliverMin) tx.DeliverMin = { currency: ftCurrency.trim().toUpperCase(), issuer: wallet.address, value: ftDeliverMin }
+        tx = buildPayment({
+          account: wallet.address,
+          destination: ftDest.trim(),
+          amount: { currency, issuer: wallet.address, value: ftAmount },
+          destTag: ftDestTag,
+          memoHex: ftMemo.trim() ? xrpl.convertStringToHex(ftMemo.trim()) : '',
+        })
+        tx.Flags = 0x00020000
+        if (ftSendMax) tx.SendMax = { currency, issuer: wallet.address, value: ftSendMax }
+        if (ftDeliverMin) tx.DeliverMin = { currency, issuer: wallet.address, value: ftDeliverMin }
+      } else {
+        const prepared = await prepareIssuedPayment(c, {
+          sender: wallet.address,
+          destination: ftDest.trim(),
+          amount: ftAmount,
+          currency,
+          issuer: wallet.address,
+        })
+        if (!prepared.ok) { setError(prepared.message); return }
+        if (prepared.note) setInfo(prepared.note)
+        sentAmount = prepared.amount
+        tx = buildPayment({
+          account: wallet.address,
+          destination: ftDest.trim(),
+          amount: { currency: prepared.currency, issuer: wallet.address, value: prepared.amount },
+          sendMax: prepared.sendMax,
+          destTag: ftDestTag,
+          memoHex: ftMemo.trim() ? xrpl.convertStringToHex(ftMemo.trim()) : '',
+        })
       }
-      if (ftDestTag) tx.DestinationTag = Number(ftDestTag)
-      if (ftMemo.trim()) tx.Memos = [{ Memo: { MemoData: xrpl.convertStringToHex(ftMemo.trim()) } }]
 
       const result = await c.submitAndWait(tx, { wallet: w })
       setTxResult(result)
       const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
-      addTx({ type: 'Issue FT', status: ok ? 'success' : 'error', amount: ftAmount, currency: ftCurrency, hash: result.result.hash })
-    } catch (e) { setError('Issue failed: ' + e.message) }
+      addTx({ type: 'Issue FT', status: ok ? 'success' : 'error', amount: sentAmount, currency, hash: result.result.hash })
+    } catch (e) { setError(ledgerErrorMessage(e, 'Issue failed: ')) }
     finally { setLoading(false) }
   }
 
@@ -290,6 +309,7 @@ function FTPanel() {
     <div className="flow">
       {!wallet && <div className="alert alert-warning">Open a book first — Bank tab.</div>}
       {error   && <div className="alert alert-danger">{error}</div>}
+      {info    && <div className="alert alert-success">{info}</div>}
 
       <div className="glass-card" style={{ padding: '4px 8px' }}>
         <div className="tab-bar">

@@ -5,7 +5,9 @@ import {
   LSF_DEFAULT_RIPPLE,
   TF_CLEAR_NO_RIPPLE,
   buildClearNoRipple,
+  clearingAmount,
   maxDeliverable,
+  paymentSendMax,
   planFromLines,
   planIssuedSend,
   rippleRepairNote,
@@ -22,6 +24,83 @@ test('a transfer fee raises the source amount and lowers what a balance can deli
   assert.equal(sourceRequired('100', ONE_PERCENT), '101')
   assert.equal(maxDeliverable('101', ONE_PERCENT), '100')
   assert.equal(maxDeliverable('0', ONE_PERCENT), '0')
+})
+
+test('500 from a 4000 balance still delivers 500 when SendMax covers the 2% fee', () => {
+  const twoPercent = 1_020_000_000
+  const plan = planIssuedSend({
+    amount: '500',
+    senderIsIssuer: false,
+    senderBalance: '4000',
+    destHasLine: true,
+    destRoom: 1_000_000_000,
+    transferRate: twoPercent,
+  })
+  assert.equal(plan.ok, true)
+  assert.equal(plan.amount, '500')
+  assert.equal(plan.note, '')
+  assert.equal(paymentSendMax({
+    amount: '500',
+    transferRate: twoPercent,
+    senderIsIssuer: false,
+    balance: '4000',
+  }), '510')
+  assert.equal(paymentSendMax({
+    amount: '500',
+    transferRate: 0,
+    senderIsIssuer: false,
+    balance: '4000',
+  }), null)
+  assert.equal(paymentSendMax({
+    amount: '500',
+    transferRate: twoPercent,
+    senderIsIssuer: true,
+    balance: '4000',
+  }), null)
+})
+
+test('a 2% transfer fee keeps the delivered amount inside the sender balance', () => {
+  const twoPercent = 1_020_000_000
+  const plan = planIssuedSend({
+    amount: '15000',
+    senderIsIssuer: false,
+    senderBalance: '15000',
+    destHasLine: true,
+    destRoom: 1_000_000_000,
+    transferRate: twoPercent,
+  })
+  assert.equal(plan.ok, true)
+  assert.ok(Number(plan.amount) < 15000)
+  assert.ok(Number(plan.amount) * twoPercent / 1_000_000_000 <= 15000)
+  assert.match(plan.note, /Sending /)
+})
+
+test('path finding lowers an amount the ledger cannot deliver in full', async () => {
+  const client = {
+    async request(req) {
+      const value = Number(req.destination_amount.value)
+      return { result: { alternatives: value > 0 && value <= 30 ? [{}] : [] } }
+    },
+  }
+  const fitted = await clearingAmount(client, {
+    source: 'rSource',
+    destination: 'rDest',
+    currency: 'NOM',
+    issuer: 'rIssuer',
+    amount: '80',
+  })
+  assert.equal(fitted.checked, true)
+  assert.ok(Number(fitted.amount) > 0)
+  assert.ok(Number(fitted.amount) <= 30)
+
+  const open = await clearingAmount(client, {
+    source: 'rSource',
+    destination: 'rDest',
+    currency: 'NOM',
+    issuer: 'rIssuer',
+    amount: '25',
+  })
+  assert.equal(open.amount, '25')
 })
 
 test('a full holder payment stays unchanged when the path can clear', () => {

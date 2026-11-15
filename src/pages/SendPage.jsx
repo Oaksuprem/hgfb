@@ -4,8 +4,8 @@ import WalletCard from '../components/WalletCard'
 import TxHistory from '../components/TxHistory'
 import TokenSelect from '../components/TokenSelect'
 import { txOutcome } from '../lib/tx'
-import { amountOf, tokenById } from '../lib/tokens'
-import { findCurrencyLine, linesWithPeer, planFromLines } from '../lib/pathfix'
+import { tokenById } from '../lib/tokens'
+import { buildPayment, ledgerErrorMessage, paymentResultMessage, prepareIssuedPayment, xrpPayment } from '../lib/payments'
 
 export default function SendPage() {
   const { xrpl, wallet, network, ensureConnected, addTx } = useXrpl()
@@ -40,42 +40,43 @@ export default function SendPage() {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
       const token = tokenById(network, tokenId)
-      let sendValue = amount
-      if (token.code !== 'XRP') {
-        const issuer = token.issuer
-        const [issuerInfo, senderLines, destLines] = await Promise.all([
-          c.request({ command: 'account_info', account: issuer, ledger_index: 'validated' }),
-          wallet.address === issuer ? Promise.resolve([]) : linesWithPeer(c, wallet.address, issuer),
-          linesWithPeer(c, dest.trim(), issuer),
-        ])
-        const plan = planFromLines({
+      const memoHex = memo.trim() ? xrpl.convertStringToHex(memo.trim()) : ''
+      let tx
+      if (token.code === 'XRP') {
+        tx = xrpPayment({
+          xrpl,
+          account: wallet.address,
+          destination: dest.trim(),
           amount,
-          senderIsIssuer: wallet.address === issuer,
-          senderLine: findCurrencyLine(senderLines, token.code),
-          destLine: findCurrencyLine(destLines, token.code),
-          transferRate: issuerInfo.result.account_data.TransferRate,
+          destTag,
+          memoHex,
         })
-        if (!plan.ok) { setError(plan.message); return }
-        sendValue = plan.amount
-        if (plan.note) setInfo(plan.note)
-      }
-      const amt = amountOf(xrpl, token, sendValue)
-
-      const tx = { TransactionType: 'Payment', Account: wallet.address, Destination: dest.trim(), Amount: amt }
-      if (destTag) tx.DestinationTag = Number(destTag)
-      if (memo.trim()) {
-        tx.Memos = [{ Memo: { MemoData: xrpl.convertStringToHex(memo.trim()) } }]
+      } else {
+        const prepared = await prepareIssuedPayment(c, {
+          sender: wallet.address,
+          destination: dest.trim(),
+          amount,
+          currency: token.code,
+          issuer: token.issuer,
+        })
+        if (!prepared.ok) { setError(prepared.message); return }
+        if (prepared.note) setInfo(prepared.note)
+        tx = buildPayment({
+          account: wallet.address,
+          destination: dest.trim(),
+          amount: { currency: prepared.currency, issuer: token.issuer, value: prepared.amount },
+          sendMax: prepared.sendMax,
+          destTag,
+          memoHex,
+        })
       }
 
       const result = await c.submitAndWait(tx, { wallet: w })
       const { ok, tes } = txOutcome(result)
       addTx()
-      if (!ok) setError(tes || 'Didn’t clear')
+      if (!ok) setError(paymentResultMessage(tes))
     } catch (e) {
-      const msg = e?.message || String(e)
-      setError(/actNotFound/.test(msg)
-        ? 'The receiver has no account or no trust line for this asset yet.'
-        : 'Payment didn’t land: ' + msg)
+      setError(ledgerErrorMessage(e))
     }
     finally { setLoading(false) }
   }
