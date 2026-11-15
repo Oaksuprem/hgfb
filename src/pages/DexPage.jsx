@@ -66,9 +66,9 @@ export default function DexPage() {
     }))
     const seqs = await batch.createTicketBatch(txs.length)
     if (!seqs) return
-    const built = await batch.buildBatch(txs)
+    const built = await batch.buildBatch(txs, seqs)
     if (!built) return
-    await batch.submitBatch()
+    await batch.submitBatch(built)
   }
 
   const createOffer = async () => {

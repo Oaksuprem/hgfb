@@ -593,9 +593,9 @@ function NFTPanel() {
     }))
     const seqs = await nftBatch.createTicketBatch(n)
     if (!seqs) return
-    const built = await nftBatch.buildBatch(txs)
+    const built = await nftBatch.buildBatch(txs, seqs)
     if (!built) return
-    await nftBatch.submitBatch()
+    await nftBatch.submitBatch(built)
     setTimeout(fetchNfts, 3000)
   }
 
@@ -1138,9 +1138,9 @@ function MPTPanel() {
     }))
     const seqs = await mptBatch.createTicketBatch(txs.length)
     if (!seqs) return
-    const built = await mptBatch.buildBatch(txs)
+    const built = await mptBatch.buildBatch(txs, seqs)
     if (!built) return
-    await mptBatch.submitBatch()
+    await mptBatch.submitBatch(built)
   }
 
   const runBatchDistribute = async () => {
@@ -1156,9 +1156,9 @@ function MPTPanel() {
     }))
     const seqs = await mptBatch.createTicketBatch(txs.length)
     if (!seqs) return
-    const built = await mptBatch.buildBatch(txs)
+    const built = await mptBatch.buildBatch(txs, seqs)
     if (!built) return
-    await mptBatch.submitBatch()
+    await mptBatch.submitBatch(built)
   }
 
   const fetchIssuances = useCallback(async () => {

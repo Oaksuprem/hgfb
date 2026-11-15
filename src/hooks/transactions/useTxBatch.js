@@ -1,14 +1,14 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useXrpl } from '../../context/XrplContext'
-import { createTickets, buildBatchTransaction, submitBatch as batchSubmit } from '../../utils/batch'
+import { createTickets, buildBatchTransaction, submitBatch as batchSubmit, freshOrSaved, reusableTickets } from '../../utils/batch'
 
 /**
  * Hook for ticket-based batch transaction workflows.
  *
  * Workflow:
  *   1. createTicketBatch(count)   — creates XRPL tickets, stores sequences
- *   2. buildBatch(txFieldsArray)  — autofills each tx with a ticket sequence
- *   3. submitBatch()              — submits all txns in parallel
+ *   2. buildBatch(txFieldsArray, seqs) — autofills each tx with a ticket sequence
+ *   3. submitBatch(built)         — submits all txns in parallel
  *   4. reset()                    — clears all state
  */
 export function useTxBatch() {
@@ -28,6 +28,8 @@ export function useTxBatch() {
   const [results,       setResults]       = useState([])
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError,   setSubmitError]   = useState('')
+  const ticketsRef = useRef([])
+  const builtRef = useRef([])
 
   // ── Create tickets ──────────────────────────────────────────────────────
   const createTicketBatch = useCallback(async (count) => {
@@ -40,7 +42,9 @@ export function useTxBatch() {
     try {
       const client = await ensureConnected()
       const w      = xrpl.Wallet.fromSeed(wallet.seed)
-      const seqs   = await createTickets(wallet.address, count, client, w)
+      const seqs   = await reusableTickets(client, wallet.address, count)
+        ?? await createTickets(wallet.address, count, client, w)
+      ticketsRef.current = seqs
       setTickets(seqs)
       return seqs
     } catch (e) {
@@ -52,9 +56,10 @@ export function useTxBatch() {
   }, [wallet, ensureConnected, xrpl])
 
   // ── Build batch ─────────────────────────────────────────────────────────
-  const buildBatch = useCallback(async (txFieldsArray) => {
-    if (txFieldsArray.length > tickets.length) {
-      setBatchError(`Not enough tickets: need ${txFieldsArray.length}, have ${tickets.length}`)
+  const buildBatch = useCallback(async (txFieldsArray, ticketSeqs) => {
+    const seqs = freshOrSaved(ticketSeqs, ticketsRef.current)
+    if (txFieldsArray.length > seqs.length) {
+      setBatchError(`Not enough tickets: need ${txFieldsArray.length}, have ${seqs.length}`)
       return null
     }
     setBatchLoading(true)
@@ -63,9 +68,10 @@ export function useTxBatch() {
       const client = await ensureConnected()
       const built  = []
       for (let i = 0; i < txFieldsArray.length; i++) {
-        const filled = await buildBatchTransaction(txFieldsArray[i], tickets[i], client)
+        const filled = await buildBatchTransaction(txFieldsArray[i], seqs[i], client)
         built.push(filled)
       }
+      builtRef.current = built
       setBuiltBatch(built)
       return built
     } catch (e) {
@@ -74,11 +80,12 @@ export function useTxBatch() {
     } finally {
       setBatchLoading(false)
     }
-  }, [tickets, ensureConnected])
+  }, [ensureConnected])
 
   // ── Submit batch ────────────────────────────────────────────────────────
-  const submitBatch = useCallback(async () => {
-    if (!builtBatch.length) {
+  const submitBatch = useCallback(async (transactions) => {
+    const ready = freshOrSaved(transactions, builtRef.current)
+    if (!ready.length) {
       setSubmitError('No transactions to submit')
       return null
     }
@@ -87,8 +94,8 @@ export function useTxBatch() {
     try {
       const client = await ensureConnected()
       const w      = xrpl.Wallet.fromSeed(wallet.seed)
-      const res    = await batchSubmit(builtBatch, client, w, (hash, index) => {
-        addTx({ type: builtBatch[index]?.TransactionType ?? 'Batch tx', status: 'success', hash })
+      const res    = await batchSubmit(ready, client, w, (hash, index) => {
+        addTx({ type: ready[index]?.TransactionType ?? 'Batch tx', status: 'success', hash })
       })
       setResults(res)
       return res
@@ -98,10 +105,12 @@ export function useTxBatch() {
     } finally {
       setSubmitLoading(false)
     }
-  }, [builtBatch, wallet, ensureConnected, xrpl, addTx])
+  }, [wallet, ensureConnected, xrpl, addTx])
 
   // ── Reset ───────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
+    ticketsRef.current = []
+    builtRef.current = []
     setTickets([])
     setBuiltBatch([])
     setResults([])

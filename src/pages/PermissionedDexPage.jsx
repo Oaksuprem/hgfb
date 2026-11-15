@@ -14,6 +14,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import TokenSelect from '../components/TokenSelect'
 import { amountOf, defaultTokenId, tokenById } from '../lib/tokens'
+import { rippleExpiration } from '../lib/time'
+import { LSF_ACCEPTED, acceptBlockReason, findCredential, queryCredentials } from '../services/CredentialService'
 import { useXrpl } from '../context/XrplContext'
 import WalletCard from '../components/WalletCard'
 import TxModal from '../components/TxModal'
@@ -53,7 +55,6 @@ function CredentialsPanel() {
   // Create fields
   const [subject,     setSubject]     = useState('')
   const [credType,    setCredType]    = useState('KYC-Verified')
-  const [credTypeRaw, setCredTypeRaw] = useState(false)
   const [expiry,      setExpiry]      = useState('')
   const [uri,         setUri]         = useState('')
 
@@ -74,8 +75,9 @@ function CredentialsPanel() {
   const [error,     setError]     = useState('')
   const [info,      setInfo]      = useState('')
   const [txResult,  setTxResult]  = useState(null)
+  const [waiting,   setWaiting]   = useState([])
 
-  const credTypeHex = credTypeRaw ? credType.trim() : toHex(credType.trim())
+  const credTypeHex = toHex(credType.trim())
 
   const createCredential = async () => {
     if (!wallet) { setError('Open an account first — Bank tab.'); return }
@@ -91,38 +93,68 @@ function CredentialsPanel() {
         Subject: subject.trim(),
         CredentialType: credTypeHex,
       }
-      if (expiry) tx.Expiration = Math.floor(new Date(expiry).getTime() / 1000) - 946684800
+      if (expiry) tx.Expiration = rippleExpiration(expiry)
       if (uri.trim()) tx.URI = toHex(uri.trim())
 
       const result = await c.submitAndWait(tx, { wallet: w })
       setTxResult(result)
-      const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
+      const code = result.result.meta.TransactionResult
+      const ok = code === 'tesSUCCESS'
       addTx({ type: 'CredentialCreate', status: ok ? 'success' : 'error', hash: result.result.hash })
       if (ok) setInfo(`Credential "${credType}" issued to ${subject.slice(0, 10)}…`)
+      else if (code === 'tecEXPIRED') setError('CredentialCreate didn’t clear: the expiry is already in the past. Choose a later date.')
+      else setError(`CredentialCreate didn’t clear: ${code}`)
     } catch (e) { setError('CredentialCreate failed: ' + e.message) }
     finally { setLoading(false) }
   }
 
-  const acceptCredential = async () => {
+  const acceptCredential = async (issuerValue, typeValue) => {
+    const issuer = String(issuerValue ?? acceptIssuer).trim()
+    const type = String(typeValue ?? acceptCredType).trim()
     if (!wallet) { setError('Open an account first.'); return }
-    if (!acceptIssuer.trim() || !acceptCredType.trim()) { setError('Issuer and credential type required.'); return }
+    if (!issuer || !type) { setError('Issuer and credential type required.'); return }
     setLoading(true); setError(''); setInfo('')
     try {
       const c = await ensureConnected()
+      const node = await findCredential(c, { subject: wallet.address, issuer, credentialType: type })
+      const reason = acceptBlockReason({
+        account: wallet.address,
+        issuer,
+        credentialType: type,
+        exists: Boolean(node),
+        accepted: Boolean(node && (node.Flags & LSF_ACCEPTED)),
+      })
+      if (reason) { setError(reason); return }
       const w = xrpl.Wallet.fromSeed(wallet.seed)
       const result = await c.submitAndWait({
         TransactionType: 'CredentialAccept',
         Account: wallet.address,
-        Issuer: acceptIssuer.trim(),
-        CredentialType: toHex(acceptCredType.trim()),
+        Issuer: issuer,
+        CredentialType: toHex(type),
       }, { wallet: w })
       setTxResult(result)
-      const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
+      const code = result.result.meta.TransactionResult
+      const ok = code === 'tesSUCCESS'
       addTx({ type: 'CredentialAccept', status: ok ? 'success' : 'error', hash: result.result.hash })
       if (ok) setInfo('Credential accepted.')
+      else if (code === 'tecNO_ENTRY') setError('CredentialAccept didn’t clear: no matching credential is waiting for this account.')
+      else setError(`CredentialAccept didn’t clear: ${code}`)
     } catch (e) { setError('CredentialAccept failed: ' + e.message) }
     finally { setLoading(false) }
   }
+
+  useEffect(() => {
+    if (tab !== 'accept' || !wallet) return undefined
+    let cancel = false
+    ;(async () => {
+      try {
+        const c = await ensureConnected()
+        const rows = await queryCredentials(wallet.address, c)
+        if (!cancel) setWaiting(rows.filter(row => (row.Flags & LSF_ACCEPTED) === 0))
+      } catch { if (!cancel) setWaiting([]) }
+    })()
+    return () => { cancel = true }
+  }, [tab, wallet, ensureConnected])
 
   const deleteCredential = async () => {
     if (!wallet) { setError('Open an account first.'); return }
@@ -191,26 +223,14 @@ function CredentialsPanel() {
             <input type="text" placeholder="r… account to receive the credential"
               value={subject} onChange={e => setSubject(e.target.value)} />
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Credential type</label>
-              <input type="text" placeholder={credTypeRaw ? 'hex e.g. 4B59432D…' : 'e.g. KYC-Verified'}
-                value={credType} onChange={e => setCredType(e.target.value)} />
-            </div>
-            <div className="field" style={{ flex: '0 0 auto' }}>
-              <label>Raw hex input</label>
-              <label className="flag-row" style={{ marginBottom: 0 }}>
-                <input type="checkbox" checked={credTypeRaw} onChange={e => setCredTypeRaw(e.target.checked)} />
-                <span className="flag-label">Use raw hex</span>
-              </label>
-            </div>
+          <div className="field">
+            <label>Credential type</label>
+            <input type="text" placeholder="e.g. KYC-Verified"
+              value={credType} onChange={e => setCredType(e.target.value)} />
           </div>
-          {!credTypeRaw && credType && (
-            <div className="pdex-hex-preview">Hex: {credTypeHex}</div>
-          )}
           <div className="field-row">
             <div className="field">
-              <label>Expiry (optional)</label>
+              <label>Expiry (optional, valid through the end of this day)</label>
               <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)} />
             </div>
             <div className="field">
@@ -228,7 +248,27 @@ function CredentialsPanel() {
       {tab === 'accept' && (
         <div className="glass-card flow">
           <div className="section-title">Accept a credential</div>
-          <p className="muted">Accept a credential that has been issued to your account. It is not valid until accepted.</p>
+          <p className="muted">Sign in as the account that received the credential. The issuer address is the account that created it.</p>
+          {waiting.length > 0 && (
+            <div className="table-scroll"><table className="data-table">
+              <thead><tr><th>Issuer</th><th>Subject</th><th>Type</th><th></th></tr></thead>
+              <tbody>
+                {waiting.map((row, i) => {
+                  const forThisAccount = row.Subject === wallet?.address
+                  return (
+                    <tr key={i}>
+                      <td className="address mono" style={{ fontSize: '.68rem' }}>{row.Issuer?.slice(0, 8)}…</td>
+                      <td className="address mono" style={{ fontSize: '.68rem' }}>{row.Subject?.slice(0, 8)}…</td>
+                      <td>{fromHex(row.CredentialType || '')}</td>
+                      <td>{forThisAccount
+                        ? <button className="btn btn-secondary" disabled={loading} onClick={() => acceptCredential(row.Issuer, fromHex(row.CredentialType || ''))}>Accept</button>
+                        : 'The subject account accepts this.'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table></div>
+          )}
           <div className="field">
             <label>Issuer address</label>
             <input type="text" placeholder="r… credential issuer"
@@ -239,7 +279,7 @@ function CredentialsPanel() {
             <input type="text" placeholder="e.g. KYC-Verified"
               value={acceptCredType} onChange={e => setAcceptCredType(e.target.value)} />
           </div>
-          <button className="btn btn-primary btn-full" onClick={acceptCredential} disabled={loading || !wallet}>
+          <button className="btn btn-primary btn-full" onClick={() => acceptCredential()} disabled={loading || !wallet}>
             {loading ? <><span className="spinner" />&nbsp;Accepting…</> : 'Accept credential'}
           </button>
         </div>

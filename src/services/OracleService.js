@@ -2,6 +2,7 @@
  * OracleService — pure builders for XLS-47 price oracle operations.
  */
 import * as xrpl from 'xrpl'
+import { assetPriceValue, oracleAssetCode } from '../lib/oracle'
 
 function toHex(s) {
   if (!s) return s
@@ -19,9 +20,9 @@ export function buildSetOracle({ account, oracleDocumentID, assetClass, provider
     LastUpdateTime: lastUpdateTime,
     PriceDataSeries: (priceDataSeries ?? []).map(p => ({
       PriceData: {
-        BaseAsset:  toHex(p.baseAsset  ?? p.BaseAsset),
-        QuoteAsset: toHex(p.quoteAsset ?? p.QuoteAsset),
-        AssetPrice: p.assetPrice ?? p.AssetPrice,
+        BaseAsset:  oracleAssetCode(p.baseAsset ?? p.BaseAsset),
+        QuoteAsset: oracleAssetCode(p.quoteAsset ?? p.QuoteAsset),
+        AssetPrice: assetPriceValue(p.assetPrice ?? p.AssetPrice, p.scale ?? p.Scale),
         Scale:      p.scale      ?? p.Scale,
       },
     })),

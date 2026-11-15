@@ -8,6 +8,8 @@
 
 import { useState, useCallback } from 'react'
 import { useXrpl } from '../context/XrplContext'
+import { assetPriceHuman, assetPriceValue, oracleAssetCode, oracleUpdateTime } from '../lib/oracle'
+import { queryOracle } from '../services/OracleService'
 import WalletCard from '../components/WalletCard'
 import TxModal from '../components/TxModal'
 
@@ -21,9 +23,12 @@ function toHex(str) {
     .toUpperCase()
 }
 
-/** Current Ripple epoch time (seconds since 2000-01-01) */
-function nowRipple() {
-  return Math.floor(Date.now() / 1000) - 946684800
+function pricePreview(row) {
+  try {
+    return `≈ ${assetPriceHuman(row.assetPrice, row.scale)} ${row.quoteAsset || '?'} per ${row.baseAsset || '?'}`
+  } catch {
+    return ''
+  }
 }
 
 // ─── OracleSet panel ────────────────────────────────────────────────────────
@@ -70,9 +75,15 @@ function OracleSetPanel() {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
 
-      const lastUpdateTime = useNow
-        ? nowRipple()
-        : Math.floor(new Date(customTime).getTime() / 1000) - 946684800
+      let previousUpdate = 0
+      if (useNow) {
+        const existing = await queryOracle(wallet.address, Number(oracleDocId), c)
+        previousUpdate = existing?.LastUpdateTime || 0
+      }
+      const lastUpdateTime = oracleUpdateTime({
+        now: useNow ? undefined : Math.floor(new Date(customTime).getTime() / 1000),
+        previous: previousUpdate,
+      })
 
       const tx = {
         TransactionType: 'OracleSet',
@@ -82,9 +93,9 @@ function OracleSetPanel() {
         LastUpdateTime: lastUpdateTime,
         PriceDataSeries: validRows.map(r => ({
           PriceData: {
-            BaseAsset:  toHex(r.baseAsset.trim()),
-            QuoteAsset: toHex(r.quoteAsset.trim()),
-            AssetPrice: r.assetPrice, // uint64 as string
+            BaseAsset:  oracleAssetCode(r.baseAsset),
+            QuoteAsset: oracleAssetCode(r.quoteAsset),
+            AssetPrice: assetPriceValue(r.assetPrice, r.scale),
             Scale:      Number(r.scale),
           },
         })),
@@ -159,9 +170,8 @@ function OracleSetPanel() {
           <button className="btn btn-secondary btn-sm" onClick={addRow}>+ Add pair</button>
         </div>
         <p className="muted">
-          Each entry defines a base/quote pair and its current price. <code>AssetPrice</code> is an integer;
-          the actual price = AssetPrice × 10<sup>−Scale</sup>.
-          E.g. price 6543210 at scale 6 = $6.54321.
+          Each entry defines a base/quote pair and its current price.
+          Type the price itself, such as 2.45, or the scaled integer, such as 6543210 at scale 6.
         </p>
 
         {priceRows.map((row, i) => (
@@ -180,8 +190,8 @@ function OracleSetPanel() {
             </div>
             <div className="field-row">
               <div className="field">
-                <label>Asset price (integer)</label>
-                <input type="text" placeholder="e.g. 6543210" value={row.assetPrice}
+                <label>Asset price</label>
+                <input type="text" placeholder="2.45 or 6543210" value={row.assetPrice}
                   onChange={e => updateRow(i, 'assetPrice', e.target.value)} className="mono" />
               </div>
               <div className="field">
@@ -195,11 +205,7 @@ function OracleSetPanel() {
                 )}
               </div>
             </div>
-            {row.assetPrice && row.scale && (
-              <div className="oracle-price-preview">
-                ≈ {(Number(row.assetPrice) * Math.pow(10, -Number(row.scale))).toPrecision(8)} {row.quoteAsset || '?'} per {row.baseAsset || '?'}
-              </div>
-            )}
+            {pricePreview(row) && <div className="oracle-price-preview">{pricePreview(row)}</div>}
             {i < priceRows.length - 1 && <hr className="divider" />}
           </div>
         ))}
@@ -486,7 +492,7 @@ export default function OraclePage() {
               Multiple publishers can post prices for the same pair. <strong>get_aggregate_price</strong> computes the trimmed mean and median across all specified feeds — giving you a manipulation-resistant reference price without a centralized intermediary.
             </p>
             <p className="muted" style={{ marginBottom: 0 }}>
-              <strong>LastUpdateTime</strong> is a Ripple-epoch timestamp. Prices older than the configurable staleness window are excluded from aggregation.
+              <strong>LastUpdateTime</strong> is a Unix timestamp and must sit within five minutes of the ledger close. An update has to be later than the oracle’s previous time.
             </p>
           </div>
         </div>

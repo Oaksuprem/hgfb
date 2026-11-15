@@ -2,6 +2,11 @@
  * Batch Utilities — XRPL Ticket-based parallel transaction batching
  */
 
+/** Prefer tickets or transactions just produced in this turn over the list React has not stored yet. */
+export function freshOrSaved(fresh, saved) {
+  return fresh ?? saved ?? []
+}
+
 /**
  * Create tickets (2–250) by submitting TicketCreate.
  * Returns sorted array of ticket sequence numbers.
@@ -29,16 +34,39 @@ export async function createTickets(account, count, client, wallet) {
   return tickets.sort((a, b) => a - b)
 }
 
+/** A ticket transaction must carry Sequence 0. A non-zero Sequence is temSEQ_AND_TICKET. */
+export function applyTicket(tx, ticketSequence) {
+  return { ...tx, TicketSequence: ticketSequence, Sequence: 0 }
+}
+
+/** Unused tickets already on the account, or null when a new TicketCreate is required. */
+export function selectTickets(existing, count) {
+  const have = [...existing].filter(n => Number.isInteger(n)).sort((a, b) => a - b)
+  if (have.length >= count) return have.slice(0, count)
+  return null
+}
+
+export async function reusableTickets(client, account, count) {
+  const r = await client.request({
+    command: 'account_objects',
+    account,
+    type: 'ticket',
+    ledger_index: 'validated',
+  })
+  const sequences = (r.result.account_objects ?? []).map(o => o.TicketSequence)
+  return selectTickets(sequences, count)
+}
+
 /**
- * Autofill a transaction using a ticket instead of Sequence.
- * Sets TicketSequence, removes Sequence, fills Fee + LastLedgerSequence.
+ * Autofill Fee and LastLedgerSequence, then pin Sequence to 0 beside the ticket.
+ * The later submit must not autofill again: a missing Sequence is replaced with
+ * the account sequence and the ledger rejects the transaction.
  */
 export async function buildBatchTransaction(txFields, ticketSequence, client) {
-  const tx = { ...txFields, TicketSequence: ticketSequence, Sequence: 0 }
-  const filled = await client.autofill(tx)
-  delete filled.Sequence
-  filled.TicketSequence = ticketSequence   // restore in case autofill overwrote
-  return filled
+  const draft = { ...txFields, TicketSequence: ticketSequence }
+  delete draft.Sequence
+  const filled = await client.autofill(draft)
+  return applyTicket(filled, ticketSequence)
 }
 
 /**
@@ -48,7 +76,7 @@ export async function buildBatchTransaction(txFields, ticketSequence, client) {
 export async function submitBatch(transactions, client, wallet, onTxComplete) {
   const results = await Promise.allSettled(
     transactions.map((tx, index) =>
-      client.submitAndWait(tx, { wallet })
+      client.submitAndWait(applyTicket(tx, tx.TicketSequence), { wallet, autofill: false })
         .then(res => {
           const hash    = res.result.hash
           const tes     = res.result.meta.TransactionResult
