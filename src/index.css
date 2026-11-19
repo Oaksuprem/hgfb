@@ -69,7 +69,7 @@ body {
 .brand-stack { display: flex; flex-direction: column; line-height: 1.05; }
 .brand-name { font-weight: 800; font-size: .82rem; letter-spacing: -.01em; }
 .brand-sub { font-size: .58rem; font-weight: 600; color: var(--txt2); letter-spacing: .08em; text-transform: uppercase; }
-.navbar-tabs { display: flex; gap: 1px; flex: 1; }
+.navbar-tabs { display: flex; gap: 1px; flex: 1; flex-wrap: wrap; }
 .nav-tab {
   padding: 5px 10px; border-radius: var(--r1);
   color: var(--txt2); text-decoration: none;

@@ -2,8 +2,8 @@
  * CredentialService — pure builders for Permissioned DEX credential operations.
  */
 import * as xrpl from 'xrpl'
-import { rippleExpiration } from '../lib/time'
-export { LSF_ACCEPTED, acceptBlockReason } from '../lib/credentials'
+import { rippleExpiration } from '../lib/time.js'
+export { LSF_ACCEPTED, acceptBlockReason } from '../lib/credentials.js'
 
 export function buildCreateCredential({ account, subject, credentialType, expiration, uri }) {
   const tx = {
@@ -42,6 +42,26 @@ export function buildAcceptCredential({ account, issuer, credentialType }) {
     Issuer: issuer,
     CredentialType: xrpl.convertStringToHex(credentialType),
   }
+}
+
+export function buildKybCredential({ account, subject, credentialType, expiration, uri }) {
+  const type = String(credentialType ?? '').trim()
+  const holder = String(subject ?? '').trim()
+  if (!type) throw new Error('Credential type is required.')
+  if (!xrpl.isValidClassicAddress(holder)) throw new Error('Subject must be a classic address.')
+  const tx = buildCreateCredential({ account, subject: holder, credentialType: type, expiration, uri })
+  xrpl.validate(tx)
+  return tx
+}
+
+export function buildKybAccept({ account, issuer, credentialType }) {
+  const type = String(credentialType ?? '').trim()
+  const issuerAddress = String(issuer ?? '').trim()
+  if (!type) throw new Error('Credential type is required.')
+  if (!xrpl.isValidClassicAddress(issuerAddress)) throw new Error('Credential issuer must be a classic address.')
+  const tx = buildAcceptCredential({ account, issuer: issuerAddress, credentialType: type })
+  xrpl.validate(tx)
+  return tx
 }
 
 export function buildDeleteCredential({ account, subject, issuer, credentialType }) {

@@ -44,9 +44,12 @@ test('XRP and USD stay currency codes so the oracle transaction can be encoded',
 
 test('oracle update time is Unix time and moves past the previous update', () => {
   const now = 1_794_770_962
-  assert.equal(oracleUpdateTime({ now, previous: 0 }), now)
-  assert.equal(oracleUpdateTime({ now, previous: now }), now + 1)
-  assert.throws(() => oracleUpdateTime({ now: 848085160 }), /Unix/)
+  assert.equal(oracleUpdateTime({ now, previous: 0, ledgerTime: now }), now)
+  assert.equal(oracleUpdateTime({ now, previous: now, ledgerTime: now }), now + 1)
+  assert.equal(oracleUpdateTime({ now, previous: now - 10, ledgerTime: now }), now)
+  assert.throws(() => oracleUpdateTime({ now: 848085160, ledgerTime: now }), /Unix/)
+  assert.throws(() => oracleUpdateTime({ now: now + 301, previous: 0, ledgerTime: now }), /five minutes/)
+  assert.throws(() => oracleUpdateTime({ now, previous: now + 300, ledgerTime: now }), /five minutes/)
 })
 
 test('text that is not a plain number is rejected before it is treated as hex', () => {

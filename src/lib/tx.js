@@ -24,6 +24,17 @@ const TYPE_LABELS = {
   EscrowFinish: 'Escrow finish',
   EscrowCancel: 'Escrow cancel',
   DepositPreauth: 'Deposit auth',
+  VaultCreate: 'Create vault',
+  VaultDeposit: 'Vault deposit',
+  VaultWithdraw: 'Vault withdrawal',
+  LoanBrokerSet: 'Loan broker',
+  LoanBrokerCoverDeposit: 'First-loss deposit',
+  LoanBrokerCoverWithdraw: 'First-loss withdrawal',
+  LoanSet: 'Loan',
+  LoanPay: 'Loan payment',
+  CredentialCreate: 'Credential',
+  CredentialAccept: 'Accept credential',
+  PermissionedDomainSet: 'Permissioned domain',
 }
 
 export function txOutcome(result) {

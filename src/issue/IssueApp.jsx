@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { XrplProvider } from '../context/XrplContext'
 import InstallBanner from '../components/InstallBanner'
 import PortalJump from '../components/PortalJump'
@@ -24,14 +24,29 @@ import IssuePage from '../pages/IssuePage.jsx'
 import OraclePage from '../pages/OraclePage.jsx'
 import PermissionedDexPage from '../pages/PermissionedDexPage.jsx'
 import ConfidentialTokensPage from '../pages/ConfidentialTokensPage.jsx'
+import InsurancePage from '../pages/InsurancePage.jsx'
+import PropertiesPage from '../pages/PropertiesPage.jsx'
+import CreditPage from '../pages/CreditPage.jsx'
 
-export default function IssueApp() {
+function KeepAlive({ active, children }) {
+  const [seen, setSeen] = useState(active)
+  if (active && !seen) setSeen(true)
+  if (!seen) return null
+  return <div hidden={!active}>{children}</div>
+}
+
+function DeskRoutes() {
+  const { pathname } = useLocation()
+  const path = pathname.replace(/\/+$/, '') || '/'
+  const insurance = path === '/insurance' || path.startsWith('/insurance/')
+  const properties = path === '/properties' || path.startsWith('/properties/')
+  const credit = path === '/credit' || path.startsWith('/credit/')
   return (
-    <XrplProvider>
-      <BrowserRouter>
-        <IssueAliasRedirect />
-        <IssueNavbar />
-        <InstallBanner />
+    <>
+      <KeepAlive active={insurance}><InsurancePage /></KeepAlive>
+      <KeepAlive active={properties}><PropertiesPage /></KeepAlive>
+      <KeepAlive active={credit}><CreditPage /></KeepAlive>
+      {insurance || properties || credit ? null : (
         <Routes>
           <Route path="/" element={<Navigate to="/issue" replace />} />
           <Route path="/issue" element={<IssuePage />} />
@@ -48,6 +63,19 @@ export default function IssueApp() {
           <Route path="/activate" element={<PortalJump portal="bank" path="/activate" />} />
           <Route path="*" element={<Navigate to="/issue" replace />} />
         </Routes>
+      )}
+    </>
+  )
+}
+
+export default function IssueApp() {
+  return (
+    <XrplProvider>
+      <BrowserRouter>
+        <IssueAliasRedirect />
+        <IssueNavbar />
+        <InstallBanner />
+        <DeskRoutes />
       </BrowserRouter>
     </XrplProvider>
   )

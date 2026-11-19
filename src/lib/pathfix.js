@@ -1,7 +1,8 @@
+import { AccountSetAsfFlags, TrustSetFlags } from 'xrpl'
 import { displayCurrency } from './holdings.js'
 
-export const TF_CLEAR_NO_RIPPLE = 262144
-export const ASF_DEFAULT_RIPPLE = 8
+export const TF_CLEAR_NO_RIPPLE = TrustSetFlags.tfClearNoRipple
+export const ASF_DEFAULT_RIPPLE = AccountSetAsfFlags.asfDefaultRipple
 export const LSF_DEFAULT_RIPPLE = 0x00800000
 const RATE_NEUTRAL = 1_000_000_000
 

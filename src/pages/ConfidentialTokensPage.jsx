@@ -18,11 +18,10 @@ import { useState, useCallback } from 'react'
 import { useXrpl } from '../context/XrplContext'
 import WalletCard from '../components/WalletCard'
 import TxModal from '../components/TxModal'
+import { confidentialIssuanceFlags } from '../lib/txFlags'
+import { buildAuthorizeMPT } from '../services/TokenService'
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-// xrpl is imported statically via XrplContext; we use the full module here for
-// confidential-transfer-specific helpers that may or may not exist in the version.
+// xrpl is imported statically for confidential-transfer helpers.
 import * as xrplLib from 'xrpl'
 
 // ─── Issue panel ─────────────────────────────────────────────────────────────
@@ -54,24 +53,15 @@ function IssuePanel({ onIssued }) {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
 
-      // Build flags — tfMPTCanHoldConfidentialBalance = 0x00000020
-      let flags = 0x00000020 // always set for confidential
-      if (canTransfer) flags |= 0x00000008 // tfMPTCanTransfer
-      if (canClawback) flags |= 0x00000010 // tfMPTCanClawback
-      if (canLock)     flags |= 0x00000002 // tfMPTCanLock
-
-      let metadata
-      try {
-        if (typeof xrplLib.encodeMPTokenMetadata === 'function') {
-          metadata = xrplLib.encodeMPTokenMetadata({
-            ticker: ticker.trim(),
-            name: name.trim(),
-            desc: desc.trim(),
-          })
-        }
-      } catch (_) {
-        metadata = undefined
+      const flags = confidentialIssuanceFlags({ canTransfer, canClawback, canLock })
+      if (typeof xrplLib.encodeMPTokenMetadata !== 'function') {
+        throw new Error('encodeMPTokenMetadata is not available in this xrpl.js version.')
       }
+      const metadata = xrplLib.encodeMPTokenMetadata({
+        ticker: ticker.trim(),
+        name: name.trim(),
+        desc: desc.trim(),
+      })
 
       const tx = {
         TransactionType: 'MPTokenIssuanceCreate',
@@ -80,8 +70,8 @@ function IssuePanel({ onIssued }) {
         MaximumAmount: maxAmt.trim() || '1000000000',
         TransferFee: 0, // must be 0 for confidential transfers
         Flags: flags,
+        MPTokenMetadata: metadata,
       }
-      if (metadata) tx.MPTokenMetadata = metadata
 
       const result = await c.submitAndWait(tx, { wallet: w })
       setTxResult(result)
@@ -319,6 +309,7 @@ function DistributePanel({ issuanceID: propID }) {
 
   const [issuanceID, setIssuanceID] = useState(propID || '')
   const [holderAddr, setHolderAddr] = useState('')
+  const [holderSeed, setHolderSeed] = useState('')
   const [amount,     setAmount]     = useState('')
 
   const [loading,   setLoading]   = useState(false)
@@ -327,23 +318,35 @@ function DistributePanel({ issuanceID: propID }) {
   const [txResult,  setTxResult]  = useState(null)
 
   const authorize = async () => {
-    if (!wallet) { setError('Open an account first.'); return }
-    if (!holderAddr.trim()) { setError('Holder address required.'); return }
     if (!issuanceID.trim()) { setError('Issuance ID required.'); return }
+    const seed = (holderSeed || wallet?.seed || '').trim()
+    if (!seed) { setError('The holder signs this opt-in. Open that account or enter its seed.'); return }
+    let holderWallet
+    try {
+      holderWallet = xrpl.Wallet.fromSeed(seed)
+    } catch {
+      setError('That seed does not open an account.')
+      return
+    }
+    const claimed = holderAddr.trim()
+    if (claimed && claimed !== holderWallet.address) {
+      setError('The holder address does not match the account that will sign this opt-in.')
+      return
+    }
     setLoading(true); setError(''); setInfo('')
     try {
       const c = await ensureConnected()
-      const w = xrpl.Wallet.fromSeed(wallet.seed)
-      // Holder must call MPTokenAuthorize to opt in
-      const result = await c.submitAndWait({
-        TransactionType: 'MPTokenAuthorize',
-        Account: holderAddr.trim(),
-        MPTokenIssuanceID: issuanceID.trim(),
-      }, { wallet: w })
+      const result = await c.submitAndWait(
+        buildAuthorizeMPT({
+          account: holderWallet.address,
+          mptIssuanceID: issuanceID.trim(),
+        }),
+        { wallet: holderWallet },
+      )
       setTxResult(result)
       const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
       addTx({ type: 'MPTokenAuthorize', status: ok ? 'success' : 'error', hash: result.result.hash })
-      if (ok) setInfo(`${holderAddr.slice(0,10)}… authorized to hold the MPT.`)
+      if (ok) setInfo(`${holderWallet.address.slice(0, 10)}… opted in to hold the MPT.`)
     } catch (e) { setError('MPTokenAuthorize failed: ' + e.message) }
     finally { setLoading(false) }
   }
@@ -375,13 +378,13 @@ function DistributePanel({ issuanceID: propID }) {
   return (
     <div className="flow">
       <div className="ct-info-box">
-        <strong>Step 3 — Authorize &amp; distribute</strong>: The holder must authorize the
-        MPT on their account before receiving tokens. Tokens are sent as a public
-        (plaintext) balance first, then converted to confidential in Step 4.
+        <strong>Step 3 — Opt in &amp; distribute</strong>: The holder signs the opt-in
+        before receiving tokens. The issuer cannot sign that transaction for them.
+        Tokens are sent as a public balance first, then converted to confidential in Step 4.
       </div>
       <div className="glass-card flow">
-        <div className="section-title">Authorize holder</div>
-        <p className="muted">Authorize a holder account to receive the MPT (MPTokenAuthorize).</p>
+        <div className="section-title">Holder opt-in</div>
+        <p className="muted">The holder signs MPTokenAuthorize. Leave the seed blank to use the open account. If you enter another address, it has to be the account that signs.</p>
         <div className="field">
           <label>MPT Issuance ID</label>
           <input type="text" placeholder="0000000… (hex)" className="mono"
@@ -389,11 +392,16 @@ function DistributePanel({ issuanceID: propID }) {
         </div>
         <div className="field">
           <label>Holder address</label>
-          <input type="text" placeholder="r… account to authorize"
+          <input type="text" placeholder="r… leave blank to use the signing account"
             value={holderAddr} onChange={e => setHolderAddr(e.target.value)} />
         </div>
+        <div className="field">
+          <label>Holder seed (blank = open account)</label>
+          <input type="text" placeholder="s… holder seed"
+            value={holderSeed} onChange={e => setHolderSeed(e.target.value)} />
+        </div>
         <button className="btn btn-secondary btn-full" onClick={authorize} disabled={loading || !wallet}>
-          {loading ? <><span className="spinner" />&nbsp;Authorizing…</> : 'Authorize holder'}
+          {loading ? <><span className="spinner" />&nbsp;Authorizing…</> : 'Opt in to hold'}
         </button>
       </div>
       <div className="glass-card flow">

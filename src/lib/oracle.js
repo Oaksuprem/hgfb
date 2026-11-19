@@ -1,13 +1,20 @@
 const UINT64_MAX = (1n << 64n) - 1n
 export const UNIX_EPOCH_OFFSET = 946684800
+/** Ledger close accepts LastUpdateTime only inside this many seconds. */
+export const ORACLE_LEDGER_WINDOW = 300
 
-export function oracleUpdateTime({ now = Math.floor(Date.now() / 1000), previous = 0 } = {}) {
+export function oracleUpdateTime({ now = Math.floor(Date.now() / 1000), previous = 0, ledgerTime } = {}) {
   const clock = Number(now)
   const prior = Number(previous) || 0
-  if (!Number.isFinite(clock) || clock < UNIX_EPOCH_OFFSET) {
+  const ledger = ledgerTime == null ? Math.floor(Date.now() / 1000) : Number(ledgerTime)
+  if (!Number.isFinite(clock) || !Number.isFinite(ledger) || clock < UNIX_EPOCH_OFFSET) {
     throw new Error('Oracle time must be a Unix timestamp within five minutes of the ledger.')
   }
-  return Math.max(clock, prior + 1)
+  const next = Math.max(clock, prior + 1)
+  if (next - ledger > ORACLE_LEDGER_WINDOW || ledger - next > ORACLE_LEDGER_WINDOW) {
+    throw new Error('Oracle time must be a Unix timestamp within five minutes of the ledger.')
+  }
+  return next
 }
 
 const ISO_ASSET = /^[A-Z0-9a-z?!@#$%^&*(){}[\]|]{3}$/

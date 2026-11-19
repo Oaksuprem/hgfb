@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback } from 'react'
 import TokenSelect from '../components/TokenSelect'
 import { amountOf, defaultTokenId, tokenById } from '../lib/tokens'
 import { rippleExpiration } from '../lib/time'
+import { offerCreateFlags } from '../lib/txFlags'
 import { LSF_ACCEPTED, acceptBlockReason, findCredential, queryCredentials } from '../services/CredentialService'
 import { useXrpl } from '../context/XrplContext'
 import WalletCard from '../components/WalletCard'
@@ -333,7 +334,7 @@ function CredentialsPanel() {
                     <td className="address mono" style={{ fontSize: '.68rem' }}>{c.Issuer?.slice(0,8)}…</td>
                     <td className="address mono" style={{ fontSize: '.68rem' }}>{c.Subject?.slice(0,8)}…</td>
                     <td>{fromHex(c.CredentialType || '')}</td>
-                    <td>{c.Flags & 0x00010000 ? <span style={{ color: 'var(--green)' }}>✓</span> : <span style={{ color: 'var(--yellow)' }}>pending</span>}</td>
+                    <td>{c.Flags & LSF_ACCEPTED ? <span style={{ color: 'var(--green)' }}>✓</span> : <span style={{ color: 'var(--yellow)' }}>pending</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -618,19 +619,23 @@ function TradingPanel({ domainID: propDomainID }) {
     if (!getsAmt || !paysAmt) { setError('Fill both sides of the order.'); return }
     if (!gets || !pays) { setError('Pick both assets from the directory.'); return }
     if (offerMode !== 'open' && !domainID.trim()) { setError('Domain ID required for permissioned/hybrid offers.'); return }
+    let flags = 0
+    let expiration
+    try {
+      flags = offerCreateFlags({
+        passive: flagPassive,
+        immediateOrCancel: flagIoC,
+        fillOrKill: flagFillOrKill,
+        sell: flagSell,
+        hybrid: offerMode === 'hybrid',
+      })
+      expiration = offerExpiry ? rippleExpiration(offerExpiry) : undefined
+    } catch (e) { setError(e.message); return }
 
     setLoading(true); setError('')
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
-
-      // Build flags
-      let flags = 0
-      if (flagPassive)    flags |= 0x00010000
-      if (flagIoC)        flags |= 0x00020000
-      if (flagFillOrKill) flags |= 0x00040000
-      if (flagSell)       flags |= 0x00080000
-      if (offerMode === 'hybrid') flags |= 0x00200000 // tfHybrid
 
       const tx = {
         TransactionType: 'OfferCreate',
@@ -640,7 +645,7 @@ function TradingPanel({ domainID: propDomainID }) {
       }
       if (flags) tx.Flags = flags
       if (offerMode !== 'open' && domainID.trim()) tx.DomainID = domainID.trim()
-      if (offerExpiry) tx.Expiration = Math.floor(new Date(offerExpiry).getTime() / 1000) - 946684800
+      if (expiration) tx.Expiration = expiration
 
       const result = await c.submitAndWait(tx, { wallet: w })
       setTxResult(result)

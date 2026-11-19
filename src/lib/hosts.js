@@ -1,4 +1,4 @@
-const ADMIN_PATHS = ['/issue', '/oracle', '/permissioned-dex', '/confidential', '/confidential-tokens']
+const ADMIN_PATHS = ['/issue', '/oracle', '/permissioned-dex', '/confidential', '/confidential-tokens', '/insurance', '/properties', '/credit']
 
 function isPortalHost(hostname, label) {
   const host = hostname.toLowerCase()
@@ -50,8 +50,4 @@ export function adminOrigin() {
   if (host.startsWith('admin.')) return window.location.origin
   if (host.startsWith('issue.')) return withPort(protocol, `admin.${host.slice('issue.'.length)}`)
   return withPort(protocol, `admin.${hostname}`)
-}
-
-export function issueOrigin() {
-  return adminOrigin()
 }

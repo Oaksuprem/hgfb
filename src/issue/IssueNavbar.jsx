@@ -6,6 +6,9 @@ import { confirmLiveRail, loadBook, stageBookForHandoff } from '../lib/walletSto
 
 const TABS = [
   { path: '/issue', label: 'Issue' },
+  { path: '/insurance', label: 'Insurance' },
+  { path: '/properties', label: 'Properties' },
+  { path: '/credit', label: 'Credit' },
   { path: '/oracle', label: 'Oracle' },
   { path: '/permissioned-dex', label: 'Permissioned DEX' },
   { path: '/confidential', label: 'Confidential' },

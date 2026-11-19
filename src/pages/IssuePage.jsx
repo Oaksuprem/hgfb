@@ -13,8 +13,22 @@ import WalletCard from '../components/WalletCard'
 import { useTxBatch } from '../hooks/transactions/useTxBatch'
 import BatchProgress from '../components/BatchProgress'
 import { buildMintNFT, buildAuthorizeMPT, buildDistributeMPT } from '../services/TokenService'
+import { NFTokenMintFlags } from 'xrpl'
 import { accountLines, keepDefaultRipple, rippleRepairNote, rippleRepairTransactions, TF_CLEAR_NO_RIPPLE } from '../lib/pathfix'
 import { buildPayment, ledgerErrorMessage, prepareIssuedPayment } from '../lib/payments'
+import { mptPresets, nftPresets } from '../lib/productPresets'
+import { rippleExpiration } from '../lib/time'
+import {
+  ACCOUNT_SET_FLAGS,
+  MPT_LOCK_FLAG,
+  MPT_UNLOCK_FLAG,
+  SELL_NFT_FLAG,
+  TF_PARTIAL_PAYMENT,
+  TF_SET_AUTH,
+  mptImmutableFlags,
+  mptIssuanceFlags,
+  nftMintFlags,
+} from '../lib/txFlags'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -80,21 +94,21 @@ function FTPanel() {
   const [txResult, setTxResult] = useState(null)
 
   const ASF_FLAGS = [
-    { name: 'asfRequireDestTag', value: 1, label: 'Require destination tag', hint: 'Payments must include a destination tag.', tfSet: 0x00010000, tfClear: 0x00020000 },
-    { name: 'asfRequireAuth', value: 2, label: 'Require authorization', hint: 'You must authorize each trust line.', tfSet: 0x00040000, tfClear: 0x00080000 },
-    { name: 'asfDisallowXRP', value: 3, label: 'Disallow XRP', hint: 'Advisory. Asks others not to send XRP here.', tfSet: 0x00100000, tfClear: 0x00200000 },
-    { name: 'asfDisableMaster', value: 4, label: 'Disable master key', hint: 'Irreversible without a regular key or signer list.' },
-    { name: 'asfAccountTxnID', value: 5, label: 'Track transaction ID', hint: 'Require AccountTxnID on later transactions.' },
-    { name: 'asfNoFreeze', value: 6, label: 'No freeze', hint: 'Permanent. You can never freeze balances.' },
-    { name: 'asfGlobalFreeze', value: 7, label: 'Global freeze', hint: 'Freeze every trust line until you clear it.' },
-    { name: 'asfDefaultRipple', value: 8, label: 'Default rippling', hint: 'Stays on. Lines opened later ripple for every issued asset.' },
-    { name: 'asfDepositAuth', value: 9, label: 'Deposit authorization', hint: 'You must preauthorize incoming payments.' },
-    { name: 'asfDisallowIncomingNFTokenOffer', value: 12, label: 'Block incoming NFT offers', hint: 'Reject NFTokenCreateOffer aimed at this account.' },
-    { name: 'asfDisallowIncomingCheck', value: 13, label: 'Block incoming checks', hint: 'Reject checks created for this account.' },
-    { name: 'asfDisallowIncomingPayChan', value: 14, label: 'Block incoming channels', hint: 'Reject payment channels funded to this account.' },
-    { name: 'asfDisallowIncomingTrustline', value: 15, label: 'Block incoming trust lines', hint: 'Others cannot open a line to this account.' },
-    { name: 'asfAllowTrustLineClawback', value: 16, label: 'Allow clawback', hint: 'Permanent. Enable only before any trust lines exist.' },
-    { name: 'asfAllowTrustLineLocking', value: 17, label: 'Allow trust line locking', hint: 'Permanent. Lets you lock individual trust lines.' },
+    { name: 'asfRequireDestTag', ...ACCOUNT_SET_FLAGS.asfRequireDestTag, label: 'Require destination tag', hint: 'Payments must include a destination tag.' },
+    { name: 'asfRequireAuth', ...ACCOUNT_SET_FLAGS.asfRequireAuth, label: 'Require authorization', hint: 'You must authorize each trust line.' },
+    { name: 'asfDisallowXRP', ...ACCOUNT_SET_FLAGS.asfDisallowXRP, label: 'Disallow XRP', hint: 'Advisory. Asks others not to send XRP here.' },
+    { name: 'asfDisableMaster', ...ACCOUNT_SET_FLAGS.asfDisableMaster, label: 'Disable master key', hint: 'Irreversible without a regular key or signer list.' },
+    { name: 'asfAccountTxnID', ...ACCOUNT_SET_FLAGS.asfAccountTxnID, label: 'Track transaction ID', hint: 'Require AccountTxnID on later transactions.' },
+    { name: 'asfNoFreeze', ...ACCOUNT_SET_FLAGS.asfNoFreeze, label: 'No freeze', hint: 'Permanent. You can never freeze balances.' },
+    { name: 'asfGlobalFreeze', ...ACCOUNT_SET_FLAGS.asfGlobalFreeze, label: 'Global freeze', hint: 'Freeze every trust line until you clear it.' },
+    { name: 'asfDefaultRipple', ...ACCOUNT_SET_FLAGS.asfDefaultRipple, label: 'Default rippling', hint: 'Stays on. Lines opened later ripple for every issued asset.' },
+    { name: 'asfDepositAuth', ...ACCOUNT_SET_FLAGS.asfDepositAuth, label: 'Deposit authorization', hint: 'You must preauthorize incoming payments.' },
+    { name: 'asfDisallowIncomingNFTokenOffer', ...ACCOUNT_SET_FLAGS.asfDisallowIncomingNFTokenOffer, label: 'Block incoming NFT offers', hint: 'Reject NFTokenCreateOffer aimed at this account.' },
+    { name: 'asfDisallowIncomingCheck', ...ACCOUNT_SET_FLAGS.asfDisallowIncomingCheck, label: 'Block incoming checks', hint: 'Reject checks created for this account.' },
+    { name: 'asfDisallowIncomingPayChan', ...ACCOUNT_SET_FLAGS.asfDisallowIncomingPayChan, label: 'Block incoming channels', hint: 'Reject payment channels funded to this account.' },
+    { name: 'asfDisallowIncomingTrustline', ...ACCOUNT_SET_FLAGS.asfDisallowIncomingTrustline, label: 'Block incoming trust lines', hint: 'Others cannot open a line to this account.' },
+    { name: 'asfAllowTrustLineClawback', ...ACCOUNT_SET_FLAGS.asfAllowTrustLineClawback, label: 'Allow clawback', hint: 'Permanent. Enable only before any trust lines exist.' },
+    { name: 'asfAllowTrustLineLocking', ...ACCOUNT_SET_FLAGS.asfAllowTrustLineLocking, label: 'Allow trust line locking', hint: 'Permanent. Lets you lock individual trust lines.' },
   ]
 
   const toggleIssuerFlag = (which, name, on) => {
@@ -233,7 +247,7 @@ function FTPanel() {
           destTag: ftDestTag,
           memoHex: ftMemo.trim() ? xrpl.convertStringToHex(ftMemo.trim()) : '',
         })
-        tx.Flags = 0x00020000
+        tx.Flags = TF_PARTIAL_PAYMENT
         if (ftSendMax) tx.SendMax = { currency, issuer: wallet.address, value: ftSendMax }
         if (ftDeliverMin) tx.DeliverMin = { currency, issuer: wallet.address, value: ftDeliverMin }
       } else {
@@ -282,7 +296,7 @@ function FTPanel() {
           issuer: ftAuthHolder.trim(), // from issuer's perspective, counterparty is the holder
           value: '0',
         },
-        Flags: 0x00010000 | TF_CLEAR_NO_RIPPLE,
+        Flags: TF_SET_AUTH | TF_CLEAR_NO_RIPPLE,
       }, { wallet: w })
       setTxResult(result)
       const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
@@ -585,6 +599,16 @@ function NFTPanel() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
   const [txResult, setTxResult] = useState(null)
+  const [nftPreset, setNftPreset] = useState('')
+
+  const applyNftPreset = (preset) => {
+    setNftPreset(preset.id)
+    setTfBurnable(preset.burnable)
+    setTfOnlyXRP(preset.onlyXrp)
+    setTfTransferable(preset.transferable)
+    setTfMutable(preset.mutableUri)
+    setTransferFee(preset.transferFee)
+  }
 
   // ── Batch collection minting ────────────────────────────────────────────
   const nftBatch       = useTxBatch()
@@ -635,11 +659,12 @@ function NFTPanel() {
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
-      let flags = 0
-      if (tfBurnable)     flags |= 0x00000001
-      if (tfOnlyXRP)      flags |= 0x00000002
-      if (tfTransferable) flags |= 0x00000008
-      if (tfMutable)      flags |= 0x00000010
+      const flags = nftMintFlags({
+        burnable: tfBurnable,
+        onlyXrp: tfOnlyXRP,
+        transferable: tfTransferable,
+        mutable: tfMutable,
+      })
       const tx = {
         TransactionType: 'NFTokenMint',
         Account: wallet.address,
@@ -665,6 +690,10 @@ function NFTPanel() {
   const createSellOffer = async () => {
     if (!wallet || !sellNftId.trim()) { setError('NFToken ID required.'); return }
     if (sellCur !== 'XRP' && !sellIss.trim()) { setError('Issuer required for token offers.'); return }
+    let expiration
+    try {
+      expiration = sellExpiry ? rippleExpiration(sellExpiry) : undefined
+    } catch (e) { setError(e.message); return }
     setLoading(true); setError('')
     try {
       const c = await ensureConnected()
@@ -673,11 +702,11 @@ function NFTPanel() {
         TransactionType: 'NFTokenCreateOffer',
         Account: wallet.address,
         NFTokenID: sellNftId.trim(),
-        Flags: 1, // tfSellNFToken
+        Flags: SELL_NFT_FLAG,
         Amount: buildNftAmount(sellAmount, sellCur, sellIss),
       }
       if (sellDest.trim())  tx.Destination = sellDest.trim()
-      if (sellExpiry)       tx.Expiration = Math.floor(new Date(sellExpiry).getTime() / 1000) - 946684800
+      if (expiration)       tx.Expiration = expiration
 
       const result = await c.submitAndWait(tx, { wallet: w })
       setTxResult(result)
@@ -691,6 +720,10 @@ function NFTPanel() {
     if (!wallet || !buyNftId.trim()) { setError('NFToken ID required.'); return }
     if (!buyOwner.trim()) { setError('Current owner address required for buy offers.'); return }
     if (buyCur !== 'XRP' && !buyIss.trim()) { setError('Issuer required for token buy offers.'); return }
+    let expiration
+    try {
+      expiration = buyExpiry ? rippleExpiration(buyExpiry) : undefined
+    } catch (e) { setError(e.message); return }
     setLoading(true); setError('')
     try {
       const c = await ensureConnected()
@@ -701,9 +734,8 @@ function NFTPanel() {
         NFTokenID: buyNftId.trim(),
         Owner: buyOwner.trim(),  // required for buy offers
         Amount: buildNftAmount(buyAmount, buyCur, buyIss),
-        // no Flags = buy offer (Flags=0)
       }
-      if (buyExpiry) tx.Expiration = Math.floor(new Date(buyExpiry).getTime() / 1000) - 946684800
+      if (expiration) tx.Expiration = expiration
 
       const result = await c.submitAndWait(tx, { wallet: w })
       setTxResult(result)
@@ -801,7 +833,21 @@ function NFTPanel() {
       {tab === 'mint' && (
         <div className="glass-card fade-in">
           <div className="section-title">Mint NFT</div>
-          <p className="muted">Creates an NFToken. These flags are <strong>immutable after minting</strong>.</p>
+          <p className="muted">Creates an NFToken. These flags are <strong>immutable after minting</strong>. A preset fills the flags and does not mint.</p>
+          <div className="tab-bar" style={{ flexWrap: 'wrap', marginBottom: 12 }}>
+            {/* The property certificate is minted on /properties. */}
+            {[nftPresets.policy, nftPresets.claim].map(preset => (
+              <button
+                type="button"
+                key={preset.id}
+                className={'tab-btn' + (nftPreset === preset.id ? ' tab-btn-active' : '')}
+                onClick={() => applyNftPreset(preset)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          {nftPreset && <div className="alert alert-info">{nftPresets[nftPreset].note}</div>}
           <div className="flags-grid">
             <Flag label="Burnable"     hint="Issuer (or authorized party) can destroy this NFT."                    checked={tfBurnable}     onChange={setTfBurnable} />
             <Flag label="Only XRP"     hint="Token can only be bought/sold for XRP."                                checked={tfOnlyXRP}      onChange={setTfOnlyXRP} />
@@ -994,9 +1040,9 @@ function NFTPanel() {
                   <div className="nft-id mono">{nft.NFTokenID.slice(0, 8)}…{nft.NFTokenID.slice(-8)}</div>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                     <span className="badge badge-devnet">Taxon {nft.NFTokenTaxon}</span>
-                    {(nft.Flags & 0x8) ? <span className="badge badge-connected">Transferable</span> : null}
-                    {(nft.Flags & 0x1) ? <span className="badge badge-testnet">Burnable</span> : null}
-                    {(nft.Flags & 0x2) ? <span className="badge badge-mainnet">XRP-only</span> : null}
+                    {(nft.Flags & NFTokenMintFlags.tfTransferable) ? <span className="badge badge-connected">Transferable</span> : null}
+                    {(nft.Flags & NFTokenMintFlags.tfBurnable) ? <span className="badge badge-testnet">Burnable</span> : null}
+                    {(nft.Flags & NFTokenMintFlags.tfOnlyXRP) ? <span className="badge badge-mainnet">XRP-only</span> : null}
                   </div>
                   {nft.URI && (
                     <div className="nft-uri muted" style={{ marginTop: 4, wordBreak: 'break-all', fontSize: '0.65rem' }}>
@@ -1134,6 +1180,27 @@ function MPTPanel() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
   const [txResult, setTxResult] = useState(null)
+  const [mptPreset, setMptPreset] = useState('')
+
+  const applyMptPreset = (preset) => {
+    setMptPreset(preset.id)
+    setAssetScale(preset.assetScale)
+    setTfCanLock(preset.canLock)
+    setTfRequireAuth(preset.requireAuth)
+    setTfCanEscrow(preset.canEscrow)
+    setTfCanTrade(preset.canTrade)
+    setTfCanTransfer(preset.canTransfer)
+    setTfCanClawback(preset.canClawback)
+    setTifCanLock(preset.immutable.canLock)
+    setTifRequireAuth(preset.immutable.requireAuth)
+    setTifCanEscrow(preset.immutable.canEscrow)
+    setTifCanTrade(preset.immutable.canTrade)
+    setTifCanTransfer(preset.immutable.canTransfer)
+    setTifCanClawback(preset.immutable.canClawback)
+    setTifMetadata(preset.immutable.metadata)
+    setTifTransferFee(preset.immutable.transferFee)
+    setMetadata(preset.metadata)
+  }
 
   // ── Batch authorize ─────────────────────────────────────────────────────
   const mptBatch        = useTxBatch()
@@ -1199,23 +1266,24 @@ function MPTPanel() {
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
-      let flags = 0
-      if (tfCanLock)     flags |= 0x00000002
-      if (tfRequireAuth) flags |= 0x00000004
-      if (tfCanEscrow)   flags |= 0x00000008
-      if (tfCanTrade)    flags |= 0x00000010
-      if (tfCanTransfer) flags |= 0x00000020
-      if (tfCanClawback) flags |= 0x00000040
-
-      let immFlags = 0
-      if (tifCanLock)     immFlags |= 0x00000002
-      if (tifRequireAuth) immFlags |= 0x00000004
-      if (tifCanEscrow)   immFlags |= 0x00000008
-      if (tifCanTrade)    immFlags |= 0x00000010
-      if (tifCanTransfer) immFlags |= 0x00000020
-      if (tifCanClawback) immFlags |= 0x00000040
-      if (tifMetadata)    immFlags |= 0x00010000
-      if (tifTransferFee) immFlags |= 0x00020000
+      const flags = mptIssuanceFlags({
+        canLock: tfCanLock,
+        requireAuth: tfRequireAuth,
+        canEscrow: tfCanEscrow,
+        canTrade: tfCanTrade,
+        canTransfer: tfCanTransfer,
+        canClawback: tfCanClawback,
+      })
+      const immFlags = mptImmutableFlags({
+        canLock: tifCanLock,
+        requireAuth: tifRequireAuth,
+        canEscrow: tifCanEscrow,
+        canTrade: tifCanTrade,
+        canTransfer: tifCanTransfer,
+        canClawback: tifCanClawback,
+        metadata: tifMetadata,
+        transferFee: tifTransferFee,
+      })
 
       const tx = {
         TransactionType: 'MPTokenIssuanceCreate',
@@ -1292,7 +1360,7 @@ function MPTPanel() {
         TransactionType: 'MPTokenIssuanceSet',
         Account: wallet.address,
         MPTokenIssuanceID: lockIssuanceId.trim(),
-        Flags: lockAction === 'lock' ? 1 : 2, // tfMPTLock=1, tfMPTUnlock=2
+        Flags: lockAction === 'lock' ? MPT_LOCK_FLAG : MPT_UNLOCK_FLAG,
       }
       if (lockHolder.trim()) tx.Holder = lockHolder.trim()
       const result = await c.submitAndWait(tx, { wallet: w })
@@ -1371,7 +1439,20 @@ function MPTPanel() {
       {tab === 'create' && (
         <div className="glass-card fade-in">
           <div className="section-title">Create MPT issuance</div>
-          <p className="muted">Defines a new Multi-Purpose Token. Mutable flags can be changed later; immutable flags are locked forever.</p>
+          <p className="muted">Defines a new Multi-Purpose Token. Mutable flags can be changed later; immutable flags are locked forever. A preset fills the flags and does not create the issuance.</p>
+          <div className="tab-bar" style={{ flexWrap: 'wrap', marginBottom: 12 }}>
+            {Object.values(mptPresets).map(preset => (
+              <button
+                type="button"
+                key={preset.id}
+                className={'tab-btn' + (mptPreset === preset.id ? ' tab-btn-active' : '')}
+                onClick={() => applyMptPreset(preset)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          {mptPreset && <div className="alert alert-info">{mptPresets[mptPreset].note}</div>}
 
           <div className="subsection-label">Mutable flags (can be toggled after creation)</div>
           <div className="flags-grid">

@@ -32,6 +32,9 @@ export default function App() {
           <Route path="/multisign" element={<MultisignPage />} />
           <Route path="/activate" element={<ActivatePage />} />
           <Route path="/issue" element={<PortalJump portal="admin" path="/issue" />} />
+          <Route path="/insurance" element={<PortalJump portal="admin" path="/insurance" />} />
+          <Route path="/properties" element={<PortalJump portal="admin" path="/properties" />} />
+          <Route path="/credit" element={<PortalJump portal="admin" path="/credit" />} />
           <Route path="/oracle" element={<PortalJump portal="admin" path="/oracle" />} />
           <Route path="/permissioned-dex" element={<PortalJump portal="admin" path="/permissioned-dex" />} />
           <Route path="/confidential" element={<PortalJump portal="admin" path="/confidential" />} />
