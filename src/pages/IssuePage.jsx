@@ -13,7 +13,7 @@ import WalletCard from '../components/WalletCard'
 import { useTxBatch } from '../hooks/transactions/useTxBatch'
 import BatchProgress from '../components/BatchProgress'
 import { buildMintNFT, buildAuthorizeMPT, buildDistributeMPT } from '../services/TokenService'
-import { accountLines, rippleRepairNote, rippleRepairTransactions } from '../lib/pathfix'
+import { accountLines, keepDefaultRipple, rippleRepairNote, rippleRepairTransactions, TF_CLEAR_NO_RIPPLE } from '../lib/pathfix'
 import { buildPayment, ledgerErrorMessage, prepareIssuedPayment } from '../lib/payments'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ function FTPanel() {
     { name: 'asfAccountTxnID', value: 5, label: 'Track transaction ID', hint: 'Require AccountTxnID on later transactions.' },
     { name: 'asfNoFreeze', value: 6, label: 'No freeze', hint: 'Permanent. You can never freeze balances.' },
     { name: 'asfGlobalFreeze', value: 7, label: 'Global freeze', hint: 'Freeze every trust line until you clear it.' },
-    { name: 'asfDefaultRipple', value: 8, label: 'Default rippling', hint: 'New trust lines ripple by default.' },
+    { name: 'asfDefaultRipple', value: 8, label: 'Default rippling', hint: 'Stays on. Lines opened later ripple for every issued asset.' },
     { name: 'asfDepositAuth', value: 9, label: 'Deposit authorization', hint: 'You must preauthorize incoming payments.' },
     { name: 'asfDisallowIncomingNFTokenOffer', value: 12, label: 'Block incoming NFT offers', hint: 'Reject NFTokenCreateOffer aimed at this account.' },
     { name: 'asfDisallowIncomingCheck', value: 13, label: 'Block incoming checks', hint: 'Reject checks created for this account.' },
@@ -114,19 +114,20 @@ function FTPanel() {
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
+      const rippleChoice = keepDefaultRipple(ftSetFlags, ftClearFlags)
       const byName = Object.fromEntries(ASF_FLAGS.map(flag => [flag.name, flag]))
       const setQueue = []
       const clearQueue = []
       let tf = 0
-      for (const name of ftSetFlags) {
+      for (const name of rippleChoice.setFlags) {
         const flag = byName[name]
         if (!flag) continue
         if (flag.tfSet) tf |= flag.tfSet
         else setQueue.push(flag.value)
       }
-      for (const name of ftClearFlags) {
+      for (const name of rippleChoice.clearFlags) {
         const flag = byName[name]
-        if (!flag || ftSetFlags.includes(name)) continue
+        if (!flag || rippleChoice.setFlags.includes(name)) continue
         if (flag.tfClear) tf |= flag.tfClear
         else clearQueue.push(flag.value)
       }
@@ -169,8 +170,33 @@ function FTPanel() {
       }
       setTxResult(last)
       addTx()
+      try {
+        const cleared = await submitRippleRepair(c, w)
+        if (cleared) setRippleNote(rippleRepairNote(cleared))
+      } catch (e) {
+        setError('Could not enable rippling: ' + e.message)
+      }
     } catch (e) { setError('AccountSet failed: ' + e.message) }
     finally { setLoading(false) }
+  }
+
+  const submitRippleRepair = async (c, w) => {
+    const info = await c.request({ command: 'account_info', account: wallet.address, ledger_index: 'validated' })
+    const lines = await accountLines(c, wallet.address)
+    const repairs = rippleRepairTransactions({
+      account: wallet.address,
+      flags: info.result.account_data.Flags,
+      lines,
+    })
+    let cleared = 0
+    for (const tx of repairs) {
+      const result = await c.submitAndWait(tx, { wallet: w })
+      if (result.result.meta.TransactionResult !== 'tesSUCCESS') {
+        throw new Error(result.result.meta.TransactionResult || 'Could not enable rippling')
+      }
+      if (tx.TransactionType === 'TrustSet') cleared += 1
+    }
+    return cleared
   }
 
   const enableExistingRipple = async () => {
@@ -179,21 +205,7 @@ function FTPanel() {
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
-      const info = await c.request({ command: 'account_info', account: wallet.address, ledger_index: 'validated' })
-      const lines = await accountLines(c, wallet.address)
-      const repairs = rippleRepairTransactions({
-        account: wallet.address,
-        flags: info.result.account_data.Flags,
-        lines,
-      })
-      let cleared = 0
-      for (const tx of repairs) {
-        const result = await c.submitAndWait(tx, { wallet: w })
-        if (result.result.meta.TransactionResult !== 'tesSUCCESS') {
-          throw new Error(result.result.meta.TransactionResult || 'Could not enable rippling')
-        }
-        if (tx.TransactionType === 'TrustSet') cleared += 1
-      }
+      const cleared = await submitRippleRepair(c, w)
       setRippleNote(rippleRepairNote(cleared))
       addTx()
     } catch (e) { setError('Could not enable rippling: ' + e.message) }
@@ -209,6 +221,7 @@ function FTPanel() {
     try {
       const c = await ensureConnected()
       const w = xrpl.Wallet.fromSeed(wallet.seed)
+      await submitRippleRepair(c, w)
       const currency = ftCurrency.trim().toUpperCase()
       let tx
       let sentAmount = ftAmount
@@ -269,7 +282,7 @@ function FTPanel() {
           issuer: ftAuthHolder.trim(), // from issuer's perspective, counterparty is the holder
           value: '0',
         },
-        Flags: 0x00010000, // tfSetfAuth
+        Flags: 0x00010000 | TF_CLEAR_NO_RIPPLE,
       }, { wallet: w })
       setTxResult(result)
       const ok = result.result.meta.TransactionResult === 'tesSUCCESS'
@@ -330,7 +343,8 @@ function FTPanel() {
               <label key={flag.name} className="flag-row">
                 <input
                   type="checkbox"
-                  checked={ftSetFlags.includes(flag.name)}
+                  checked={flag.name === 'asfDefaultRipple' || ftSetFlags.includes(flag.name)}
+                  disabled={flag.name === 'asfDefaultRipple'}
                   onChange={e => toggleIssuerFlag('set', flag.name, e.target.checked)}
                 />
                 <span>
@@ -342,7 +356,7 @@ function FTPanel() {
           </div>
           <div className="subsection-label">Clear</div>
           <div className="flags-grid">
-            {ASF_FLAGS.map(flag => (
+            {ASF_FLAGS.filter(flag => flag.name !== 'asfDefaultRipple').map(flag => (
               <label key={flag.name} className="flag-row">
                 <input
                   type="checkbox"
@@ -388,7 +402,7 @@ function FTPanel() {
             {loading ? <><span className="spinner"></span> Applying…</> : 'Apply issuer settings'}
           </button>
           <p className="muted" style={{ marginTop: 12 }}>
-            Default rippling applies to lines opened afterward. Existing lines keep No Ripple until you clear them, which is why holder-to-holder payments return tecPATH_DRY.
+            Default rippling stays on for this issuer, so assets issued later ripple as soon as a trust line opens. Applying settings or distributing also clears No Ripple on lines that were opened earlier.
           </p>
           <button className="btn btn-secondary btn-full" onClick={enableExistingRipple} disabled={loading || !wallet}>
             {loading ? <><span className="spinner"></span> Updating lines…</> : 'Enable rippling on existing lines'}

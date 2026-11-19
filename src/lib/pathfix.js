@@ -89,6 +89,12 @@ export function hasDefaultRipple(flags) {
   return (Number(flags) & LSF_DEFAULT_RIPPLE) !== 0
 }
 
+export function keepDefaultRipple(setNames = [], clearNames = []) {
+  const setFlags = setNames.includes('asfDefaultRipple') ? [...setNames] : ['asfDefaultRipple', ...setNames]
+  const clearFlags = clearNames.filter(name => name !== 'asfDefaultRipple')
+  return { setFlags, clearFlags }
+}
+
 export function lineMatchesCurrency(line, code) {
   if (!line || !code) return false
   return line.currency === code || displayCurrency(line.currency) === code

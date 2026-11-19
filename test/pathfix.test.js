@@ -10,6 +10,7 @@ import {
   paymentSendMax,
   planFromLines,
   planIssuedSend,
+  keepDefaultRipple,
   rippleRepairNote,
   rippleRepairTransactions,
   sourceRequired,
@@ -193,6 +194,14 @@ test('a line snapshot plans the same payment the page will send', () => {
   })
   assert.equal(blocked.ok, false)
   assert.equal(blocked.code, 'tecPATH_DRY')
+})
+
+test('issuer settings keep default rippling on and cannot clear it', () => {
+  const kept = keepDefaultRipple(['asfRequireAuth'], ['asfDefaultRipple', 'asfGlobalFreeze'])
+  assert.deepEqual(kept.setFlags, ['asfDefaultRipple', 'asfRequireAuth'])
+  assert.deepEqual(kept.clearFlags, ['asfGlobalFreeze'])
+  const already = keepDefaultRipple(['asfDefaultRipple'], [])
+  assert.deepEqual(already.setFlags, ['asfDefaultRipple'])
 })
 
 test('existing-line repair sets default rippling only when it is off, then clears No Ripple', () => {

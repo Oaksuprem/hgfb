@@ -147,7 +147,7 @@ Transactions requiring unavailable amendments will fail gracefully with an error
 ## Security Notes
 
 - **Testnet/Devnet only by default**: The app connects to devnet on first load. Switch to mainnet manually and **use at your own risk**.
-- **Seeds in sessionStorage**: Wallet seeds are stored in plain text in `sessionStorage` (cleared on tab close). Not suitable for production without encryption.
+- **Seeds in localStorage**: One wallet book is stored in plain text under `xrpl-wallet`. Switching networks shows that same account on each rail. Not suitable for a shared device without encryption.
 - **No external wallet support**: This is a developer reference client. For end-user applications, integrate Xaman, Crossmark, or GemWallet.
 - **Encryption keys**: EC-ElGamal private keys are derived from account seeds. Back up seeds securely — lost keys mean permanently unspendable confidential balances.
 
